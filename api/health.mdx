@@ -1,0 +1,145 @@
+---
+title: "GET /health — gateway health and capabilities"
+description: "GET /health returns gateway status, active port, app version, and tool capabilities. No auth required — use it for liveness probes and port discovery."
+---
+
+The health endpoint is the one unauthenticated route on the gateway. Use it to confirm the gateway is running, discover the active port, and check which tool binaries are available on the machine before issuing authenticated requests.
+
+## GET /health
+
+No authentication or special headers are required.
+
+```
+GET http://localhost:19432/health
+```
+
+### Response fields
+
+<ResponseField name="status" type="string">
+  Always `"ok"` when the gateway is running and healthy.
+</ResponseField>
+
+<ResponseField name="machineName" type="string">
+  The hostname of the machine running the Desktop app. Useful when multiple machines expose a gateway through the cloud relay.
+</ResponseField>
+
+<ResponseField name="version" type="string">
+  The Desktop app version string (semver). Use this to confirm the installed version before calling features that may not exist in older releases.
+</ResponseField>
+
+<ResponseField name="port" type="number">
+  The port the gateway is actively listening on. This may differ from the default `19432` if the default port was already in use at startup. Always use this value to build subsequent request URLs.
+</ResponseField>
+
+<ResponseField name="capabilities" type="object">
+  An object describing which tool binaries are installed and their versions.
+
+  <Expandable title="capabilities fields">
+    <ResponseField name="capabilities.tools" type="object">
+      A map of tool name to boolean — `true` means the binary was detected at startup. Tool names: `claude`, `codex`, `git`, `gh`, `python3`.
+    </ResponseField>
+
+    <ResponseField name="capabilities.versions" type="object">
+      A partial map of tool name to version string. Only tools that were successfully detected include a version entry. Version strings are extracted from the binary's `--version` output.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash curl
+curl -s http://localhost:19432/health
+```
+
+```json response
+{
+  "status": "ok",
+  "machineName": "my-mac",
+  "version": "0.4.1",
+  "port": 19432,
+  "capabilities": {
+    "tools": {
+      "claude": true,
+      "codex": false,
+      "git": true,
+      "gh": true,
+      "python3": true
+    },
+    "versions": {
+      "claude": "1.2.3",
+      "git": "2.44.0",
+      "gh": "2.48.0",
+      "python3": "3.12.2"
+    }
+  }
+}
+```
+
+</CodeGroup>
+
+### Port discovery
+
+If you are unsure which port the gateway is listening on, probe the fallback ports in order until you receive a `200` response:
+
+```bash
+for port in 19432 19433 19434 19435; do
+  status=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${port}/health")
+  if [ "$status" = "200" ]; then
+    echo "Gateway active on port ${port}"
+    break
+  fi
+done
+```
+
+Once you find the active port, extract the canonical port from the response body:
+
+```bash
+GATEWAY_PORT=$(curl -s http://localhost:19432/health | jq -r .port)
+```
+
+## GET /api/gateway/health-check
+
+This is a separate, **authenticated** extended health check endpoint that runs binary detection, plugin version checks, and directory validation. It is used by the Desktop app's Settings diagnostics panel and is not intended as a liveness probe.
+
+<Note>
+Use `GET /health` for liveness probes and port discovery. Use `GET /api/gateway/health-check` only when you need detailed binary and plugin diagnostics — it performs additional checks and takes several seconds to complete.
+</Note>
+
+**Required headers:** `X-Desktop-Session-Token`, `Origin`
+
+**Query parameters:**
+
+<ParamField query="expectedMcpUrl" type="string">
+  Optional. When provided, the health check verifies that the MCP server is reachable at this URL.
+</ParamField>
+
+**Example response shape:**
+
+```json
+{
+  "checks": [
+    {
+      "id": "git",
+      "label": "Git",
+      "required": true,
+      "passed": true,
+      "version": "2.44.0"
+    },
+    {
+      "id": "claude-cli",
+      "label": "Claude CLI",
+      "required": true,
+      "passed": false,
+      "error": "Not found",
+      "remediation": "Install: npm install -g @anthropic-ai/claude-code"
+    }
+  ],
+  "allRequiredPassed": false,
+  "mcpServers": {
+    "claude": { "available": true },
+    "codex": { "available": false }
+  }
+}
+```

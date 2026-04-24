@@ -1,0 +1,92 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "luma",
+  "name": "ClosedLoop",
+  "logo": {
+    "light": "https://media.brand.dev/e2f8caec-bf31-4a34-bd16-5a16bdc0ec4b.png",
+    "dark": "https://media.brand.dev/e2f8caec-bf31-4a34-bd16-5a16bdc0ec4b.png"
+  },
+  "favicon": "https://media.brand.dev/91a98f5b-137c-4166-af92-da3c22746d36.jpg",
+  "colors": {
+    "primary": "#0475c5",
+    "light": "#1c749c",
+    "dark": "#f5e1a6"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/closedloop-ai/closedloop-electron"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/sandbox",
+              "configuration/approval-policy",
+              "configuration/binary-paths",
+              "configuration/environment-variables"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/symphony-sessions",
+              "features/git-operations",
+              "features/ai-chat",
+              "features/cloud-connection"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/gateway-auth",
+              "security/sandbox-policy"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "troubleshooting/common-issues",
+              "troubleshooting/connection-status"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Gateway API",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/health",
+              "api/filesystem",
+              "api/git",
+              "api/symphony",
+              "api/chat"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

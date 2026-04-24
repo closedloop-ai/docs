@@ -1,0 +1,113 @@
+---
+title: "Control operation approvals with risk tiers"
+description: "Set a global risk threshold or per-operation overrides to control which ClosedLoop Desktop operations run automatically and which pause for your confirmation."
+---
+
+ClosedLoop Desktop routes every incoming operation through an approval policy before execution. The policy assigns each operation a risk tier and compares it against your configured approval threshold. Operations at or below the threshold run automatically; operations above it are held for your approval. By default, all operations require explicit approval, giving you full control from the start.
+
+## Risk tiers
+
+Every operation is assigned one of four risk tiers. The tiers are ordered from lowest to highest risk:
+
+| Tier | Meaning |
+|---|---|
+| `none` | No threshold — nothing is auto-approved; every operation requires confirmation |
+| `low` | Auto-approve operations with `low` inherent risk; prompt for `medium` and `high` |
+| `medium` | Auto-approve operations with `low` or `medium` risk; prompt only for `high` |
+| `high` | Auto-approve all operations including `high`-risk ones (no prompts) |
+
+When you set your **default approval tier** to a given level, all operations whose inherent risk is at or below that level are approved automatically. Operations above the threshold are queued for your manual approval.
+
+<Note>
+  Setting the default tier to `none` means nothing is auto-approved — every operation will prompt you for confirmation. Setting it to `high` means everything is auto-approved. The factory default is `high`, so the app starts with all operations auto-approved. Lower the threshold to require approval for riskier operations.
+</Note>
+
+## Configuring the default approval tier
+
+<Steps>
+  <Step title="Open Settings">
+    In the ClosedLoop Desktop app, open **Settings**.
+  </Step>
+  <Step title="Find the Approval Policy section">
+    Locate the **Default Approval Tier** control under **Approval Policy**.
+  </Step>
+  <Step title="Select a tier">
+    Choose `none`, `low`, `medium`, or `high` from the dropdown. The change takes effect immediately.
+  </Step>
+</Steps>
+
+## Per-operation overrides
+
+You can override the risk tier for individual operations using `autoApprovalRules`. This lets you auto-approve specific operations without lowering your global threshold for everything else.
+
+For example, you might keep your default at `none` (approve everything) but set `health_check` to auto-approve:
+
+```json
+{
+  "autoApprovalRules": {
+    "health_check": "low",
+    "git_branch_worktree": "low"
+  }
+}
+```
+
+An operation's effective approval behavior is determined by whichever threshold is more permissive: the default tier or its per-operation override.
+
+## Always-allow rules
+
+`alwaysAllowRules` let you grant time-limited automatic approval for a specific operation, scoped to an optional path. Each rule carries an expiry timestamp — once expired, the rule no longer applies and the operation falls back to your normal policy.
+
+Each rule has the following shape:
+
+```json
+{
+  "id": "a1b2c3d4-...",
+  "operationId": "filesystem",
+  "method": "GET",
+  "path": "/api/gateway/work-directory/:id",
+  "scopePath": "/Users/you/projects/my-app",
+  "createdAt": "2025-01-01T00:00:00Z",
+  "expiresAt": "2025-01-02T00:00:00Z"
+}
+```
+
+Always-allow rules are typically created through the approval prompt in the desktop UI when you choose "Always allow for this session" or a similar option.
+
+## Operation risk tier reference
+
+The table below lists every operation and its inherent risk tier. This is the baseline used before any overrides are applied.
+
+| Operation | Inherent risk tier | Description |
+|---|---|---|
+| `deploy` | `high` | Deployment actions |
+| `repos_config` | `medium` | Repository configuration |
+| `filesystem` | `medium` | File and directory access |
+| `symphony_sessions` | `medium` | Symphony session management |
+| `symphony_chat_history` | `medium` | Symphony chat history |
+| `git_action` | `medium` | Git operations (commit, push, etc.) |
+| `git_pr` | `medium` | Pull request and GitHub user operations |
+| `symphony_launch` | `medium` | Launch a Symphony agent |
+| `symphony_loop` | `medium` | Run a Symphony agent loop |
+| `symphony_loop_kill` | `medium` | Kill a running Symphony loop |
+| `symphony_plan_loop` | `medium` | Run a Symphony plan loop |
+| `symphony_kill` | `medium` | Kill a Symphony agent |
+| `symphony_chat` | `medium` | Send a chat message to Symphony |
+| `symphony_comment_chat` | `medium` | Send a comment-scoped chat message |
+| `symphony_commit_message` | `medium` | Generate a commit message via Symphony |
+| `symphony_plan` | `medium` | Generate a Symphony plan |
+| `symphony_judges` | `medium` | Run Symphony judge evaluations |
+| `terminal_chat` | `medium` | Terminal chat interaction |
+| `ticket_chat` | `medium` | Ticket-scoped chat interaction |
+| `run_viewer_chat` | `medium` | Run viewer chat interaction |
+| `codex_review` | `medium` | Codex review operation |
+| `codex_argue` | `medium` | Codex argument/debate operation |
+| `learnings` | `medium` | Learning extraction and processing |
+| `binary_paths_settings` | `medium` | Binary path configuration |
+| `health_check` | `low` | Gateway health and version checks |
+| `symphony_status` | `low` | Symphony agent status queries |
+| `symphony_logs` | `low` | Symphony log retrieval |
+| `git_branch_worktree` | `low` | Git branch and worktree operations |
+
+<Warning>
+  The `deploy` operation is the only one rated `high`. If you lower your default tier to `medium` or below, `deploy` will require explicit approval. If your default tier is `high` (the factory default), `deploy` runs without a prompt like all other operations.
+</Warning>

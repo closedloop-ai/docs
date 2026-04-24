@@ -1,0 +1,218 @@
+---
+title: "Troubleshooting common issues in ClosedLoop Desktop"
+description: "Fix common ClosedLoop Desktop problems: gateway not responding, missing API key, sandbox 403 errors, binary not found, port conflicts, and auto-update issues."
+---
+
+If something isn't working as expected, the health endpoint is your first diagnostic tool. Open a terminal and run the command below — it works without authentication and tells you the port the gateway is using, which binaries are available, and the app version.
+
+```bash
+curl -s http://localhost:19432/health
+```
+
+A healthy response looks like this:
+
+```json
+{
+  "status": "ok",
+  "machineName": "my-mac",
+  "capabilities": {
+    "tools": {
+      "claude": true,
+      "codex": false,
+      "git": true,
+      "gh": true,
+      "python3": true
+    },
+    "versions": {
+      "claude": "1.2.3",
+      "git": "2.44.0",
+      "gh": "2.49.0",
+      "python3": "3.13.0"
+    }
+  },
+  "version": "0.4.1",
+  "port": 19432
+}
+```
+
+The `capabilities.tools` object shows which binaries the app found at startup. Any entry showing `false` means that binary is unavailable and features depending on it won't work.
+
+<AccordionGroup>
+
+<Accordion title="Gateway not responding">
+
+If `curl http://localhost:19432/health` returns a connection error, the gateway is not reachable. Work through the following steps.
+
+<Steps>
+  <Step title="Check that the app is running">
+    Look for the ClosedLoop icon in your system tray (macOS menu bar). If it isn't there, open the app from your Applications folder or start menu.
+  </Step>
+  <Step title="Check the tray tooltip">
+    Hover over the tray icon. If the tooltip says **Starting**, wait a few seconds and try again. If it says **Error**, quit and relaunch the app.
+  </Step>
+  <Step title="Check for a port conflict">
+    The app tries port 19432 first, then falls back to 19433, 19434, and 19435. If 19432 is already in use, the gateway binds on a different port. Try the fallback ports:
+
+    ```bash
+    curl -s http://localhost:19433/health
+    curl -s http://localhost:19434/health
+    curl -s http://localhost:19435/health
+    ```
+
+    The `port` field in the response tells you which port is active.
+  </Step>
+  <Step title="Restart the app">
+    Quit ClosedLoop Desktop completely from the tray menu, then reopen it.
+  </Step>
+</Steps>
+
+</Accordion>
+
+<Accordion title="API key not configured (503 on auth, 401 on all routes)">
+
+The gateway enforces a fail-closed policy when no API key is set. This means the app itself starts normally and the health endpoint remains accessible, but authenticated browser sessions cannot be established.
+
+**Symptoms:**
+- The challenge-exchange endpoint returns `503 Local gateway auth unavailable: API key required`
+- All gateway routes return `401` when accessed from the web app
+
+**Fix:** Open the ClosedLoop Desktop settings and enter your API key. Once saved, the gateway immediately accepts new session tokens — no restart required.
+
+<Note>
+  The health endpoint at `/health` always responds regardless of whether an API key is configured. Use it to confirm the app is running even when other routes return errors.
+</Note>
+
+</Accordion>
+
+<Accordion title="Sandbox directory not set (403 errors)">
+
+Every gateway route that accesses the filesystem checks whether the requested path falls inside your configured sandbox directory. If no sandbox directory is set, all such requests are denied.
+
+**Symptoms:**
+- Operations return `403 directory not allowed`
+- File browsing, session commands, and workspace access fail
+
+**Fix:** Open Desktop Settings and set a **Sandbox Base Directory**. This should be the root folder that contains your projects — for example, `~/Source` or `~/Projects`. The app restricts all file access to within this directory.
+
+<Warning>
+  Certain sensitive paths are always blocked even if they fall inside your sandbox: `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/Library/Keychains`, `/etc`, `/bin`, and `/sbin`.
+</Warning>
+
+</Accordion>
+
+<Accordion title="Binary not found (claude, git, gh, codex, python3)">
+
+The app resolves binaries from your shell's PATH at startup. If you installed a tool through Homebrew, nvm, conda, Volta, or a similar version manager, its directory may not be on the PATH the app inherits — even if it works fine in a terminal.
+
+**Diagnose with the health endpoint:**
+
+```bash
+curl -s http://localhost:19432/health | python3 -m json.tool
+```
+
+Look at `capabilities.tools`. Any binary showing `false` was not found.
+
+**Fix: configure binary paths in Settings**
+
+You can point the app directly to each binary instead of relying on PATH resolution. In Desktop Settings, expand the **Binary Paths** section and enter the absolute path for any binary that isn't being found.
+
+To find the path of a binary in your terminal:
+
+```bash
+which claude
+which gh
+which git
+which python3
+which codex
+```
+
+Common locations by install method:
+
+| Binary | Homebrew (Apple Silicon) | Homebrew (Intel) | npm global |
+|--------|--------------------------|------------------|------------|
+| `claude` | `/opt/homebrew/bin/claude` | `/usr/local/bin/claude` | `~/.claude/local/claude` |
+| `gh` | `/opt/homebrew/bin/gh` | `/usr/local/bin/gh` | — |
+| `git` | `/opt/homebrew/bin/git` | `/usr/local/bin/git` | — |
+| `python3` | `/opt/homebrew/bin/python3` | `/usr/local/bin/python3` | — |
+| `codex` | `/opt/homebrew/bin/codex` | `/usr/local/bin/codex` | `~/.volta/bin/codex` |
+
+After updating a binary path in Settings, the app re-probes it immediately — no restart needed.
+
+</Accordion>
+
+<Accordion title="Symphony sessions failing">
+
+Symphony sessions require the `claude` binary to be available. If `claude` shows `false` in the health response, sessions will not start.
+
+<Steps>
+  <Step title="Check the health endpoint">
+    ```bash
+    curl -s http://localhost:19432/health
+    ```
+
+    Confirm `capabilities.tools.claude` is `true`. If it is `false`, follow the steps in **Binary not found** above to configure the `claude` binary path.
+  </Step>
+  <Step title="Verify the Claude Code installation">
+    In your terminal, run:
+
+    ```bash
+    claude --version
+    ```
+
+    If this fails, install or reinstall Claude Code:
+
+    ```bash
+    npm install -g @anthropic-ai/claude-code
+    ```
+  </Step>
+  <Step title="Check the API key">
+    Even if the `claude` binary is found, sessions require a valid API key in Desktop Settings. A missing key causes a `503` error on the auth exchange step (see **API key not configured** above).
+  </Step>
+  <Step title="Check your session token">
+    Session tokens expire. If you were previously authenticated and sessions have stopped working, sign in again through the ClosedLoop web app to obtain a fresh token.
+  </Step>
+</Steps>
+
+</Accordion>
+
+<Accordion title="Port already in use">
+
+The app binds on port 19432 by default. If that port is occupied by another process, it tries 19433, 19434, and 19435 in order.
+
+**Find the active port:**
+
+```bash
+curl -s http://localhost:19432/health
+curl -s http://localhost:19433/health
+curl -s http://localhost:19434/health
+curl -s http://localhost:19435/health
+```
+
+The response from the port currently in use will include `"status": "ok"`. The `port` field confirms which port is active.
+
+**If all four ports are occupied:** Another instance of ClosedLoop Desktop may already be running. Check your tray for a second icon, or use Activity Monitor (macOS) to find and quit the duplicate process, then relaunch.
+
+<Tip>
+  If a non-ClosedLoop process is using 19432, you can usually identify it with `lsof -i :19432` on macOS or Linux.
+</Tip>
+
+</Accordion>
+
+<Accordion title="Auto-update not working">
+
+Auto-update only works in packaged (DMG) builds of ClosedLoop Desktop. The app checks for updates every 5 minutes and notifies you in-app when a new version is available. Updates install automatically when you quit the app.
+
+**If you installed from a DMG and aren't receiving updates:**
+- Make sure the app is connected to the internet
+- Confirm the tray state is **ready** or **degraded** (not **error**)
+- Quit and relaunch the app to trigger an immediate update check
+
+**If you built the app from source:** Source builds do not use the auto-update mechanism. To update, pull the latest code and rebuild manually.
+
+<Note>
+  You can check your current version in the health response: `curl -s http://localhost:19432/health | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])"`.
+</Note>
+
+</Accordion>
+
+</AccordionGroup>

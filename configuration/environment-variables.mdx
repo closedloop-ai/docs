@@ -1,0 +1,93 @@
+---
+title: "Environment variables for ClosedLoop Desktop"
+description: "Set API keys and service origins via environment variables before launching ClosedLoop Desktop. Useful for scripted setups and staging environments."
+---
+
+ClosedLoop Desktop reads a set of environment variables at startup to configure API keys and service origins. These variables let you override the built-in defaults without touching the settings UI — useful for scripted setups, staging environments, or machines where you want to avoid storing credentials on disk.
+
+Environment variables are read once at launch. Changes made after the app has started require a restart to take effect.
+
+## Reference
+
+| Variable | Default | Description |
+|---|---|---|
+| `CLOSEDLOOP_API_KEY` | *(none)* | ClosedLoop platform API key. When set, this takes precedence over any API key stored in the encrypted key store. Use this for scripted or automated setups. |
+| `SYMPHONY_API_KEY` | *(none)* | Symphony API key. Used as a fallback when `CLOSEDLOOP_API_KEY` is not set and no key is found in the encrypted key store. |
+| `CL_RELAY_ORIGIN` | `https://relay.closedloop.ai` | Overrides the WebSocket relay server origin. The desktop app connects here to receive cloud commands. |
+| `CL_WEB_APP_ORIGIN` | `https://app.closedloop.ai` | Overrides the web app origin. Used for CORS validation and origin enforcement on the local gateway. |
+| `CL_AUTH_API_ORIGIN` | `https://api.closedloop.ai` | Overrides the REST auth API origin. Used for authentication verification and other REST calls. |
+
+## API key precedence
+
+ClosedLoop Desktop resolves the active API key in the following order:
+
+1. `CLOSEDLOOP_API_KEY` environment variable (highest priority)
+2. `SYMPHONY_API_KEY` environment variable
+3. Encrypted key stored in the system keychain via safeStorage
+
+If none of these are present, the local gateway will be unavailable until you add a key through the settings UI or via an environment variable.
+
+<Warning>
+  If you set `CLOSEDLOOP_API_KEY` as an environment variable, it overrides the key stored in the app's encrypted key store. Unsetting the variable will cause the app to fall back to the stored key (or `SYMPHONY_API_KEY` if set). Make sure the value is correct before launching the app.
+</Warning>
+
+## Origin overrides
+
+The three origin variables (`CL_RELAY_ORIGIN`, `CL_WEB_APP_ORIGIN`, `CL_AUTH_API_ORIGIN`) allow you to point ClosedLoop Desktop at a different environment — for example, a staging cluster or a self-hosted relay.
+
+```bash
+export CL_RELAY_ORIGIN="https://relay.staging.closedloop.ai"
+export CL_WEB_APP_ORIGIN="https://app.staging.closedloop.ai"
+export CL_AUTH_API_ORIGIN="https://api.staging.closedloop.ai"
+```
+
+The same values can also be configured persistently through **Settings → Origins** in the desktop UI. Environment variables take precedence over the UI-configured values at startup.
+
+<Note>
+  You can also save and switch between origin configurations using named profiles in **Settings → Configurations**. Environment variables are better suited for one-off overrides or automated setups; named profiles are more convenient for regular manual switching.
+</Note>
+
+## Setting environment variables on macOS
+
+Because ClosedLoop Desktop is a GUI app launched from the Dock or Finder, it does not inherit shell environment variables from your terminal. You have two options:
+
+**Launch from your terminal** so the app inherits the current shell environment:
+
+```bash
+open -a "ClosedLoop Desktop"
+```
+
+**Set variables system-wide** using a `launchd` plist (persists across reboots):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.closedloop.env</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/launchctl</string>
+      <string>setenv</string>
+      <string>CLOSEDLOOP_API_KEY</string>
+      <string>your-api-key-here</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+  </dict>
+</plist>
+```
+
+Save this file to `~/Library/LaunchAgents/com.closedloop.env.plist` and load it with:
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.closedloop.env.plist
+```
+
+Then restart ClosedLoop Desktop.
+
+<Tip>
+  For most users, setting the API key through **Settings → API Key** in the desktop UI is simpler and more secure than environment variables. The UI stores the key using macOS safeStorage (encrypted with your login credentials). Use environment variables when you need to manage credentials externally or automate the setup.
+</Tip>

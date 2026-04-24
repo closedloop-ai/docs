@@ -1,0 +1,48 @@
+---
+title: "What is ClosedLoop Desktop?"
+description: "ClosedLoop Desktop runs a secure localhost HTTP gateway on your Mac, bridging the ClosedLoop web app to your local dev tools for AI-powered coding sessions."
+---
+
+ClosedLoop Desktop is a macOS application that sits quietly in your menu bar and acts as a secure bridge between the [ClosedLoop web platform](https://app.closedloop.ai) and your local development environment. Instead of uploading your code to a remote server, ClosedLoop Desktop runs AI coding sessions, git operations, and file access directly on your machine — keeping your source code local at all times.
+
+## How it works
+
+When you trigger a task in the ClosedLoop web app, a command travels over an encrypted cloud relay to your desktop app. The app verifies the request, checks it against your sandbox policy, and executes it locally using tools like Claude Code, `git`, and `gh`. Results stream back to the web app in real time.
+
+<CardGroup cols={2}>
+  <Card title="Localhost gateway" icon="server">
+    The app binds a local HTTP server on port `19432`. The ClosedLoop web app communicates with this gateway to read files, run git commands, and launch AI sessions — all without leaving your machine.
+  </Card>
+  <Card title="Cloud relay" icon="cloud">
+    ClosedLoop Desktop maintains a persistent WebSocket connection to `relay.closedloop.ai`. This lets the cloud platform send commands to your machine securely, even without a direct network path to your laptop.
+  </Card>
+  <Card title="Symphony AI sessions" icon="robot">
+    Symphony sessions run Claude Code directly in your repository. The AI can read files, make edits, commit changes, open pull requests, and iterate — all within the bounds you configure.
+  </Card>
+  <Card title="Sandbox security" icon="shield">
+    You choose a root directory. The gateway enforces strict path-based access control: nothing outside that directory can be read or modified. Sensitive paths like `~/.ssh` and `~/.aws` are always blocked, even if they fall inside your sandbox root.
+  </Card>
+</CardGroup>
+
+## Why you need it
+
+The ClosedLoop web app at [app.closedloop.ai](https://app.closedloop.ai) handles planning, review, and collaboration. But AI coding tasks — running tests, editing files, committing code — need to happen on your machine where your repository and tools live. ClosedLoop Desktop is what makes that possible.
+
+Without the desktop app, the web app cannot access your local files or execute commands in your environment. With it running, every AI coding session in the web app operates on your actual codebase, using your installed tools, inside a boundary you control.
+
+## What gets installed
+
+ClosedLoop Desktop is a standard macOS application distributed as a DMG. It runs as a menu bar app with no Dock icon by default. The gateway server starts automatically when the app launches and shuts down cleanly when you quit.
+
+The app stores your API key encrypted in macOS Keychain — it is never stored in plain text on disk.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Download the DMG and get the app running on your Mac in a few minutes.
+  </Card>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Connect your API key, set a sandbox directory, and launch your first Symphony session.
+  </Card>
+</CardGroup>

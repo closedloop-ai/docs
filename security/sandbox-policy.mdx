@@ -1,0 +1,89 @@
+---
+title: "Sandbox policy and file access restrictions"
+description: "The ClosedLoop Desktop sandbox confines all file and git operations to a directory you choose. Sensitive paths like ~/.ssh and ~/.aws are always blocked."
+---
+
+The ClosedLoop Desktop app enforces a sandbox policy that confines all file and git operations to a single directory you choose. Even if an AI session attempts to read or modify a file outside that boundary, the local gateway blocks the request before anything happens on disk. This page explains how the sandbox works, how to configure it, and which paths are permanently off-limits.
+
+## What the sandbox is
+
+The sandbox is a single root directory that acts as a boundary for every file, search, and git operation the gateway performs. When you set a sandbox directory, the gateway checks every incoming path against it. Any operation targeting a path outside the sandbox is rejected immediately with a `403` error — no file is read, written, or executed.
+
+The sandbox is a single root, not a list. You cannot add multiple separate directories; all allowed paths must live under one common parent.
+
+## Setting your sandbox directory
+
+<Steps>
+  <Step title="Open Settings">
+    In the ClosedLoop Desktop app, open **Settings**.
+  </Step>
+  <Step title="Find Sandbox Directory">
+    Locate the **Sandbox Directory** field.
+  </Step>
+  <Step title="Enter your projects root">
+    Type or paste the absolute path to the directory that contains your projects. For example: `~/Source` or `~/Projects`.
+  </Step>
+  <Step title="Save">
+    Save your settings. The gateway applies the new boundary immediately — no restart required.
+  </Step>
+</Steps>
+
+<Tip>
+  Set the sandbox to the parent directory that contains all your repositories. For example, if your projects live under `~/Source/`, set the sandbox to `~/Source/`. This gives AI sessions access to any project inside that folder while keeping everything else on your machine off-limits.
+</Tip>
+
+## What happens for blocked paths
+
+When the gateway rejects a path outside the sandbox, it returns:
+
+- **HTTP status:** `403 Forbidden`
+- **Response body:**
+
+```json
+{"error": "directory not allowed"}
+```
+
+For example, if your sandbox is `~/Source` and a request targets `/tmp`:
+
+```bash
+curl -s \
+  -H "X-Desktop-Session-Token: <token>" \
+  -H "Origin: http://localhost" \
+  "http://localhost:19432/api/gateway/directories?path=/tmp"
+```
+
+```json
+{"error": "directory not allowed"}
+```
+
+The same response applies whether the path is outside the sandbox or on the hardcoded deny list below.
+
+## Hardcoded deny list
+
+Certain sensitive paths are permanently blocked, regardless of where you set your sandbox directory. Even if your sandbox root is your entire home directory, these paths will never be accessible through the gateway:
+
+<Warning>
+  The following paths are always denied — they cannot be unlocked by any setting:
+
+  | Path | What it protects |
+  |------|-----------------|
+  | `~/.ssh` | SSH private keys and known hosts |
+  | `~/.gnupg` | GPG keys and keyrings |
+  | `~/.aws` | AWS credentials and configuration |
+  | `~/Library/Keychains` | macOS Keychain data |
+  | `/etc` | System configuration files |
+  | `/bin` | Core system binaries |
+  | `/sbin` | System administration binaries |
+
+  This protection applies to symlinks as well — if a path inside your sandbox resolves to one of these locations, it is still blocked.
+</Warning>
+
+## Why this matters
+
+AI sessions can suggest and execute file operations on your behalf. The sandbox policy means that even if an AI session is misdirected — by a malformed prompt, a confused model, or unexpected input — it cannot reach files outside your designated workspace. The gateway enforces this at the HTTP layer before any tool or subprocess runs.
+
+If no sandbox directory is configured, the gateway denies all file and git operations entirely. This is intentional: an empty sandbox setting means "deny everything," not "allow everything."
+
+<Info>
+  The sandbox directory is stored in your ClosedLoop Desktop settings and takes effect immediately when changed. It does not require the app to restart.
+</Info>

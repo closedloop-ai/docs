@@ -1,0 +1,73 @@
+---
+title: "Install ClosedLoop Desktop on macOS"
+description: "Download the ClosedLoop Desktop DMG from GitHub Releases and install it on your Mac. The app runs a localhost gateway and shows a tray icon when active."
+---
+
+ClosedLoop Desktop is distributed as a universal macOS DMG that runs on both Apple Silicon and Intel Macs. The recommended way to install is to download the latest release directly from GitHub — no package manager or build step required.
+
+<Note>
+  ClosedLoop Desktop requires macOS. Linux is supported for development builds only and is not covered here.
+</Note>
+
+## System requirements
+
+- **macOS** (Apple Silicon or Intel)
+- A **ClosedLoop API key** — you can find this in your account settings at [app.closedloop.ai](https://app.closedloop.ai)
+
+## Install from GitHub Releases
+
+<Steps>
+  <Step title="Download the DMG">
+    Go to the [ClosedLoop Desktop releases page](https://github.com/closedloop-ai/closedloop-electron/releases) and download the latest `.dmg` file.
+  </Step>
+  <Step title="Open the DMG">
+    Double-click the downloaded `.dmg` file. A Finder window opens showing the ClosedLoop app.
+  </Step>
+  <Step title="Move to Applications">
+    Drag **ClosedLoop** into your **Applications** folder.
+  </Step>
+  <Step title="Launch the app">
+    Open **ClosedLoop** from your Applications folder or Spotlight. macOS may ask you to confirm opening an app downloaded from the internet — click **Open**.
+
+    The app does not open a main window on launch. Instead, it appears as an icon in your menu bar (system tray).
+  </Step>
+  <Step title="Verify the gateway is running">
+    Click the ClosedLoop icon in your menu bar. The status indicator shows whether the gateway and cloud relay are connected. You can also confirm the gateway is up by checking the health endpoint:
+
+    ```bash
+    curl -s http://localhost:19432/health
+    ```
+
+    A successful response looks like this:
+
+    ```json
+    {"status":"ok","machineName":"your-mac","capabilities":{...},"version":"...","port":19432}
+    ```
+  </Step>
+</Steps>
+
+## What happens when the app starts
+
+When ClosedLoop Desktop launches, it:
+
+1. Binds a local HTTP gateway on port `19432` (falling back to `19433`, `19434`, or `19435` if the default port is taken)
+2. Opens a persistent WebSocket connection to the ClosedLoop cloud relay
+3. Shows a tray icon in your menu bar reflecting the current connection status
+
+The gateway is ready to accept connections from the ClosedLoop web app as soon as the tray icon appears.
+
+## Auto-updates
+
+ClosedLoop Desktop checks for updates every 5 minutes in the background. When a new version is available, you will see a notification in the app. The update downloads automatically and installs the next time you quit and relaunch the app — no manual action required.
+
+<Tip>
+  You do not need to re-download the DMG for future updates. Once installed, the app keeps itself current automatically.
+</Tip>
+
+## Uninstalling
+
+To remove ClosedLoop Desktop, quit the app from the menu bar, then drag it from your Applications folder to the Trash. Your settings and API key are stored in `~/Library/Application Support/ClosedLoop` and macOS Keychain respectively — you can remove those manually if you want a clean uninstall.
+
+## Next steps
+
+Once the app is installed and the gateway is running, follow the [quickstart guide](/quickstart) to connect your API key, configure a sandbox directory, and launch your first AI coding session.

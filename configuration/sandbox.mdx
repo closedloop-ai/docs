@@ -1,0 +1,71 @@
+---
+title: "Configure the sandbox directory for file access"
+description: "Choose a root directory to limit ClosedLoop Desktop file access. Operations outside this path return 403. Sensitive paths like ~/.ssh are always blocked."
+---
+
+The sandbox directory is the single folder you designate as the root of ClosedLoop Desktop's file access. Every API route that touches the filesystem checks the requested path against this directory before proceeding. If a path falls outside the sandbox — or matches a hardcoded sensitive location — the request is rejected with a `403` error. This boundary exists to ensure that ClosedLoop Desktop can only interact with files you have explicitly chosen to expose.
+
+## How to set your sandbox directory
+
+<Steps>
+  <Step title="Open Settings">
+    In the ClosedLoop Desktop app, click the **Settings** icon in the sidebar or toolbar.
+  </Step>
+  <Step title="Locate the Sandbox Directory field">
+    Find the **Sandbox Directory** setting under the **General** section.
+  </Step>
+  <Step title="Enter or browse to a path">
+    Type an absolute path or use the folder picker to select your project root. The path supports `~` as a shorthand for your home directory (for example, `~/projects/my-app`).
+  </Step>
+  <Step title="Save">
+    Click **Save**. The new boundary takes effect immediately — no restart is required.
+  </Step>
+</Steps>
+
+<Note>
+  If you have not set a sandbox directory, all filesystem API routes will return `403`. You must configure a sandbox directory before ClosedLoop Desktop can read or write any files on your behalf.
+</Note>
+
+## How path enforcement works
+
+When any API route receives a path argument, the gateway resolves it to an absolute, canonical path (following symlinks where they exist) and then checks two things:
+
+1. **Sensitive path deny list** — if the resolved path matches or is a child of any hardcoded blocked location, the request is denied regardless of the sandbox setting.
+2. **Sandbox containment** — if the path is not inside your configured sandbox directory, the request is denied.
+
+Both checks must pass. A path that is inside your sandbox but also inside a blocked location will still be denied.
+
+Denied requests return:
+
+```http
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{"error": "directory not allowed"}
+```
+
+## Hardcoded sensitive paths
+
+The following paths are always denied, even if they are inside your configured sandbox directory. This list is fixed and cannot be changed through settings.
+
+<Warning>
+  These paths are permanently blocked and cannot be overridden. Requests targeting any of these locations — or any file or folder inside them — will always return `403`.
+
+  | Path | What it protects |
+  |---|---|
+  | `~/.ssh` | SSH private keys and known hosts |
+  | `~/.gnupg` | GPG keys and keyrings |
+  | `~/.aws` | AWS credentials and config |
+  | `~/Library/Keychains` | macOS Keychain data |
+  | `/etc` | System-wide configuration files |
+  | `/bin` | Core system binaries |
+  | `/sbin` | System administration binaries |
+</Warning>
+
+## Choosing a good sandbox directory
+
+<Tip>
+  Set your sandbox to the top-level folder that contains your source code and project files — for example, `~/projects` or a specific repository root. Avoid setting it to your entire home directory, as that would give ClosedLoop Desktop access to a wide range of personal files.
+</Tip>
+
+A narrower sandbox reduces the surface area of what ClosedLoop Desktop can touch. If you work across multiple projects, you can set the sandbox to a common parent folder (such as `~/projects`) and all child directories will be accessible.

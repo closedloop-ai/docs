@@ -1,0 +1,86 @@
+---
+title: "Local gateway authentication and access control"
+description: "Learn how the ClosedLoop Desktop gateway authenticates requests from the cloud relay and the web app, and what happens when your API key is not configured."
+---
+
+The ClosedLoop Desktop app runs a small HTTP gateway on your machine that handles file, git, and AI operations on your behalf. This page explains how that gateway decides which requests to trust, and what safeguards prevent unauthorized access.
+
+## Loopback-only access
+
+The gateway only accepts connections from loopback IPv4 addresses (`127.0.0.1`). No request originating from another machine on your network — or from the internet — can reach it. This means the gateway is never exposed beyond your own computer, regardless of your network configuration or firewall settings.
+
+Gateway routes all start with `/api/gateway/*`. Requests to any other path return `404`. Only `app.closedloop.ai` and localhost origins are permitted to make cross-origin requests to the gateway; all other origins are blocked.
+
+## How the gateway is called
+
+Two callers reach the gateway in normal operation:
+
+<CardGroup cols={2}>
+  <Card title="Cloud relay" icon="cloud">
+    When you run an AI session from the ClosedLoop web app, cloud commands are delivered to your desktop via an encrypted WebSocket relay. The desktop authenticates these internally using your ClosedLoop API key. No action is required from you — this happens automatically in the background.
+  </Card>
+  <Card title="Web app (browser)" icon="globe">
+    When `app.closedloop.ai` needs to call the gateway directly from your browser, it goes through a short challenge-exchange flow to obtain a session token. The web app manages this automatically; you never interact with it directly.
+  </Card>
+</CardGroup>
+
+## Browser session token exchange
+
+When the ClosedLoop web app connects to your local gateway, it completes a one-time challenge-exchange to prove it is the legitimate web app and not a rogue page:
+
+<Steps>
+  <Step title="Web app requests a challenge">
+    The web app asks the ClosedLoop API server for a short-lived `challengeToken` tied to your account.
+  </Step>
+  <Step title="Challenge is sent to the gateway">
+    The web app sends that `challengeToken` to your desktop gateway.
+  </Step>
+  <Step title="Gateway verifies with the API server">
+    The desktop independently verifies the `challengeToken` with the ClosedLoop API server. This confirms the request came from a trusted session, not an arbitrary page.
+  </Step>
+  <Step title="Session token is issued">
+    If verification succeeds, the gateway issues a short-lived session token bound to the origin that made the request. The web app stores it in memory and attaches it to subsequent requests via the `X-Desktop-Session-Token` header.
+  </Step>
+</Steps>
+
+<Note>
+  You do not need to manage session tokens manually. The web app handles the full exchange automatically each time it connects to your gateway.
+</Note>
+
+Session tokens are short-lived and origin-bound. A token obtained by `app.closedloop.ai` cannot be used by a different origin — even if another page somehow retrieved it.
+
+## Checking gateway health
+
+The health endpoint is always accessible without authentication. You can use it to confirm your gateway is running and to find its active port:
+
+```bash
+curl -s http://localhost:19432/health
+```
+
+A successful response looks like:
+
+```json
+{
+  "status": "ok",
+  "machineName": "your-mac",
+  "version": "0.4.1",
+  "port": 19432
+}
+```
+
+The gateway defaults to port `19432` and falls back to `19433`, `19434`, or `19435` if that port is already in use. The active port is always shown in the health response and in the ClosedLoop Desktop settings panel.
+
+## What happens when your API key is missing
+
+The gateway is designed to fail closed, not silently degrade. If your ClosedLoop API key is not configured:
+
+- The desktop app starts normally and the health endpoint continues to work.
+- The challenge-exchange endpoint returns `503` with the message `"Local gateway auth unavailable: API key required"`.
+- Without a valid session token, all gateway routes return `401`.
+- The web app surfaces the `503` error in the UI so you know exactly what to fix.
+
+The app does not crash and there is no insecure fallback path. To restore gateway access, add your API key in **Settings → API Key**.
+
+<Warning>
+  If you see a `503` error when the web app tries to connect to your local gateway, check that your API key is configured in the ClosedLoop Desktop settings. Without it, direct browser-to-gateway features are unavailable.
+</Warning>

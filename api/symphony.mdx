@@ -1,0 +1,280 @@
+---
+title: "Symphony API: launch and manage AI coding sessions"
+description: "Start, monitor, interact with, and stop Symphony AI coding sessions via the ClosedLoop Desktop gateway. Includes status polling and log streaming examples."
+---
+
+Symphony is ClosedLoop's agentic coding system. These endpoints let you launch a Symphony session with a prompt, poll its status, stream logs, send interactive messages, inspect the session plan, and stop a running session. All Symphony endpoints require a valid session token.
+
+## Authentication
+
+All Symphony endpoints require:
+
+| Header | Value |
+|--------|-------|
+| `X-Desktop-Session-Token` | Your session token |
+| `Origin` | `https://app.closedloop.ai` or your loopback origin |
+
+---
+
+## POST /api/gateway/symphony/loop
+
+Launch a new Symphony coding session. The gateway spawns an agent process on the specified branch and begins executing the prompt. Depending on your Desktop approval settings, this request may be queued for approval before the agent starts.
+
+**Request body:**
+
+<ParamField body="repoPath" type="string" required>
+  Absolute path to the git repository root within the sandbox.
+</ParamField>
+
+<ParamField body="branch" type="string" required>
+  The git branch the agent will work on. Symphony creates or checks out a worktree for this branch.
+</ParamField>
+
+<ParamField body="prompt" type="string" required>
+  The task description or instruction for the agent.
+</ParamField>
+
+<ParamField body="baseBranch" type="string">
+  The base branch to compare against when generating diffs and PRs. Defaults to `"main"`.
+</ParamField>
+
+<ParamField body="provider" type="string">
+  AI provider to use: `"claude"` (default) or `"codex"`. The provider binary must be available — check `capabilities.tools` in `/health`.
+</ParamField>
+
+**Response:**
+
+<ResponseField name="sessionId" type="string">
+  Unique identifier for the launched session. Use this ID with all other Symphony endpoints.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Initial status of the session, typically `"running"`.
+</ResponseField>
+
+**Example:**
+
+<CodeGroup>
+
+```bash curl
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/symphony/loop \
+  -d '{
+    "repoPath": "/Users/you/Source/my-app",
+    "branch": "feature/add-retry-logic",
+    "prompt": "Add exponential backoff retry logic to the fetchUser function in src/api/users.ts",
+    "baseBranch": "main"
+  }'
+```
+
+```json response
+{
+  "sessionId": "sess_a1b2c3d4e5f6",
+  "status": "running"
+}
+```
+
+</CodeGroup>
+
+---
+
+## GET /api/gateway/symphony/status/:id
+
+Get the current status of a Symphony session.
+
+**Path parameters:**
+
+<ParamField path="id" type="string" required>
+  The session ID returned by `POST /api/gateway/symphony/loop`.
+</ParamField>
+
+**Response:**
+
+<ResponseField name="status" type="string">
+  One of: `"running"`, `"completed"`, `"failed"`, `"cancelled"`.
+</ResponseField>
+
+<ResponseField name="sessionId" type="string">
+  The session ID.
+</ResponseField>
+
+**Example:**
+
+<CodeGroup>
+
+```bash curl
+curl -s \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  "http://localhost:19432/api/gateway/symphony/status/sess_a1b2c3d4e5f6"
+```
+
+```json response
+{
+  "sessionId": "sess_a1b2c3d4e5f6",
+  "status": "completed"
+}
+```
+
+</CodeGroup>
+
+You can also call `GET /api/gateway/symphony/status` without an ID to get the status of all active sessions.
+
+---
+
+## GET /api/gateway/symphony/sessions
+
+List all Symphony sessions tracked by the gateway. Returns session metadata including the ticket ID, repo path, worktree path, and timestamps.
+
+**GET /api/gateway/symphony/sessions/:id**
+
+Get a single session record by ID.
+
+**Example:**
+
+```bash
+curl -s \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/symphony/sessions
+```
+
+---
+
+## GET /api/gateway/symphony/logs/:id
+
+Stream or retrieve the output logs for a Symphony session.
+
+**Path parameters:**
+
+<ParamField path="id" type="string" required>
+  The session ID.
+</ParamField>
+
+**Example:**
+
+```bash
+curl -s \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  "http://localhost:19432/api/gateway/symphony/logs/sess_a1b2c3d4e5f6"
+```
+
+---
+
+## POST /api/gateway/symphony/kill
+
+Stop a running Symphony session. The agent process is terminated and the session status transitions to `"cancelled"`.
+
+**Request body:**
+
+<ParamField body="sessionId" type="string" required>
+  The ID of the session to stop.
+</ParamField>
+
+**Example:**
+
+<CodeGroup>
+
+```bash curl
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/symphony/kill \
+  -d '{"sessionId": "sess_a1b2c3d4e5f6"}'
+```
+
+```json response
+{
+  "success": true
+}
+```
+
+</CodeGroup>
+
+---
+
+## POST /api/gateway/symphony/chat/:id
+
+Send an interactive message to a running Symphony session. Use this to provide clarification, approve a proposed change, or redirect the agent mid-run.
+
+**Path parameters:**
+
+<ParamField path="id" type="string" required>
+  The session ID.
+</ParamField>
+
+**Request body:**
+
+<ParamField body="message" type="string" required>
+  The message to send to the agent.
+</ParamField>
+
+**Example:**
+
+```bash
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  "http://localhost:19432/api/gateway/symphony/chat/sess_a1b2c3d4e5f6" \
+  -d '{"message": "Please also update the unit tests for this function."}'
+```
+
+---
+
+## GET /api/gateway/symphony/plan/:id
+
+Retrieve the current plan the agent has produced for the session. The plan is a structured list of steps the agent intends to execute.
+
+**POST /api/gateway/symphony/plan/:id**
+
+Update or replace the session plan.
+
+**Path parameters:**
+
+<ParamField path="id" type="string" required>
+  The session ID.
+</ParamField>
+
+**Example:**
+
+```bash
+curl -s \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  "http://localhost:19432/api/gateway/symphony/plan/sess_a1b2c3d4e5f6"
+```
+
+---
+
+## Polling a session to completion
+
+The typical integration pattern is to launch a session, then poll status until it reaches a terminal state:
+
+```bash
+SESSION_ID=$(curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/symphony/loop \
+  -d '{"repoPath":"/Users/you/Source/my-app","branch":"feature/retry","prompt":"Add retry logic"}' \
+  | jq -r .sessionId)
+
+while true; do
+  STATUS=$(curl -s \
+    -H "X-Desktop-Session-Token: clsess_xyz789..." \
+    -H "Origin: https://app.closedloop.ai" \
+    "http://localhost:19432/api/gateway/symphony/status/${SESSION_ID}" \
+    | jq -r .status)
+  echo "Status: $STATUS"
+  if [[ "$STATUS" == "completed" || "$STATUS" == "failed" || "$STATUS" == "cancelled" ]]; then
+    break
+  fi
+  sleep 5
+done
+```

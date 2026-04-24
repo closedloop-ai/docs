@@ -1,0 +1,116 @@
+---
+title: "Authenticate requests to the local gateway"
+description: "Obtain a session token via the challenge-exchange flow and use it with X-Desktop-Session-Token to authenticate all ClosedLoop Desktop gateway API calls."
+---
+
+Every route under `/api/gateway/*` requires authentication. There are two credential paths: a **session token** issued through the challenge-exchange flow (used by browsers and direct API callers), and an **internal gateway token** used by the ClosedLoop cloud relay. If you are calling the gateway directly — for example, from a script or a test harness — you will use the session token path.
+
+<Note>
+The ClosedLoop web app at `app.closedloop.ai` handles authentication automatically. You only need to follow this flow when calling the gateway from your own tooling.
+</Note>
+
+## Session token flow
+
+### 1. Obtain a challenge token
+
+Your client requests a short-lived challenge token from the ClosedLoop REST API (`https://api.closedloop.ai`). This step requires a valid ClosedLoop account API key. The challenge token proves to the desktop gateway that the request originates from an authenticated session.
+
+### 2. Exchange the challenge for a session token
+
+Send the challenge token to the gateway's exchange endpoint:
+
+```
+POST /gateway-auth/exchange
+```
+
+The exchange endpoint is **only accessible from loopback addresses** (`127.0.0.1`, `::1`). Requests from non-loopback addresses receive `403`.
+
+**Request headers:**
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Origin` | Yes | Must be an allowed origin (`https://app.closedloop.ai` or a loopback origin). |
+| `Content-Type` | Yes | `application/json` |
+
+**Request body:**
+
+<ParamField body="challengeToken" type="string" required>
+  The challenge token obtained from the ClosedLoop REST API in step 1.
+</ParamField>
+
+**Example request:**
+
+```bash
+curl -s -X POST http://localhost:19432/gateway-auth/exchange \
+  -H "Content-Type: application/json" \
+  -H "Origin: https://app.closedloop.ai" \
+  -d '{"challengeToken": "clchallenge_abc123..."}'
+```
+
+**Example response:**
+
+```json
+{
+  "sessionToken": "clsess_xyz789...",
+  "expiresAt": "2026-04-24T15:30:00.000Z"
+}
+```
+
+<ResponseField name="sessionToken" type="string">
+  The session token to include in subsequent gateway requests via the `X-Desktop-Session-Token` header.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string">
+  ISO 8601 timestamp indicating when the session token expires. Token lifetime is determined by the server and is typically short-lived.
+</ResponseField>
+
+### 3. Call gateway routes with the session token
+
+Include both `X-Desktop-Session-Token` and `Origin` on every subsequent request. The gateway validates that the origin matches the one used during exchange.
+
+```bash
+curl -s \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  "http://localhost:19432/api/gateway/directories?path=/Users/you/Source"
+```
+
+## Required headers for gateway routes
+
+| Header | Description |
+|--------|-------------|
+| `X-Desktop-Session-Token` | Session token from the exchange response. |
+| `Origin` | Must match the origin bound to the session during exchange. |
+
+<Warning>
+Sending an `Origin` header alone — without a valid `X-Desktop-Session-Token` — is not sufficient. The gateway does not support origin-only authentication.
+</Warning>
+
+## Token expiry
+
+When your session token expires, gateway routes return `401`:
+
+```json
+{
+  "error": "unauthorized",
+  "reason": "invalid or expired session token, or origin mismatch"
+}
+```
+
+Repeat the exchange flow to obtain a new token. Store the `expiresAt` value from the exchange response and proactively refresh before expiry rather than waiting for a `401`.
+
+## What happens when the API key is missing
+
+If the desktop app is running but its ClosedLoop API key is not configured, the exchange endpoint returns `503`:
+
+```json
+{
+  "error": "Local gateway auth unavailable: API key required"
+}
+```
+
+Without a valid exchange, all gateway routes return `401`. The `/health` endpoint remains unaffected and continues to respond normally.
+
+## Testing your integration
+
+During development, you can test gateway calls using the challenge-exchange flow against a locally running instance of ClosedLoop Desktop. Follow steps 1–3 above using a test API key tied to your development account, then include the session token in your requests.

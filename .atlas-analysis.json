@@ -1,0 +1,109 @@
+{
+  "projectType": "saas",
+  "projectName": "ClosedLoop Desktop",
+  "projectDescription": "A macOS desktop application that bridges the ClosedLoop web platform to your local machine, enabling AI-powered coding sessions, git operations, and file access through a secure localhost HTTP gateway.",
+  "theme": "luma",
+  "primaryColor": "#0475c5",
+  "lightColor": "#1c749c",
+  "darkColor": "#f5e1a6",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/sandbox",
+              "configuration/approval-policy",
+              "configuration/binary-paths",
+              "configuration/environment-variables"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/symphony-sessions",
+              "features/git-operations",
+              "features/ai-chat",
+              "features/cloud-connection"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/gateway-auth",
+              "security/sandbox-policy"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "troubleshooting/common-issues",
+              "troubleshooting/connection-status"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Gateway API",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/health",
+              "api/filesystem",
+              "api/git",
+              "api/symphony",
+              "api/chat"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Localhost HTTP gateway on port 19432 bridging ClosedLoop web app to local dev tools",
+    "AI-powered coding sessions via Symphony (Claude Code integration)",
+    "Git operations: branches, diffs, PRs, worktrees",
+    "Sandbox directory enforcement with path-based access control",
+    "Approval policy system with per-operation risk tiers (none/low/medium/high)",
+    "Cloud relay connection for remote command execution",
+    "Auto-update via electron-updater with in-app notifications",
+    "Secure session token exchange for browser authentication",
+    "macOS tray icon with connection status and pending approval count",
+    "Binary path overrides for claude, gh, codex, git, python3"
+  ],
+  "publicApiSurface": [
+    "GET /health — gateway health check and capabilities",
+    "POST /gateway-auth/exchange — obtain browser session token",
+    "GET /api/gateway/directories — list directory contents",
+    "GET /api/gateway/files/search — search files in sandbox",
+    "GET/POST /api/gateway/git/* — git actions, branches, diffs, PRs, worktrees",
+    "POST /api/gateway/symphony/loop — launch AI coding session",
+    "GET /api/gateway/symphony/status — session status",
+    "POST /api/gateway/symphony/kill — stop a session",
+    "GET /api/gateway/symphony/logs/:id — session logs",
+    "GET /api/gateway/symphony/sessions — list sessions",
+    "POST /api/gateway/terminal-chat — terminal chat session",
+    "POST /api/gateway/ticket-chat — ticket-based chat",
+    "POST /api/gateway/run-viewer-chat — run viewer chat",
+    "GET /api/gateway/repos — repository configuration",
+    "GET/PATCH /api/gateway/settings/binary-paths — binary path settings"
+  ]
+}

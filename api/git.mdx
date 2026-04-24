@@ -1,0 +1,203 @@
+---
+title: "Git endpoints: branches, commits, diffs, and PRs"
+description: "Run sandboxed git operations through the ClosedLoop Desktop gateway — list branches, commit changes, get diffs, manage worktrees, and create GitHub PRs."
+---
+
+The git endpoints wrap common git and GitHub CLI operations and execute them within the sandbox. All paths are validated against the sandbox base directory before any git command is spawned. These endpoints require a valid session token on every request.
+
+## Authentication
+
+All git endpoints require:
+
+| Header | Value |
+|--------|-------|
+| `X-Desktop-Session-Token` | Your session token |
+| `Origin` | `https://app.closedloop.ai` or your loopback origin |
+
+---
+
+## GET /api/gateway/git/branches
+
+List all local and remote branches in a repository.
+
+**Query parameters:**
+
+<ParamField query="path" type="string" required>
+  Absolute path to the git repository root. Must be within the sandbox.
+</ParamField>
+
+**Example:**
+
+<CodeGroup>
+
+```bash curl
+curl -s \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  "http://localhost:19432/api/gateway/git/branches?path=/Users/you/Source/my-app"
+```
+
+```json response
+{
+  "branches": ["main", "feature/my-feature", "fix/bug-123"],
+  "current": "main"
+}
+```
+
+</CodeGroup>
+
+---
+
+## POST /api/gateway/git/action
+
+Run a git operation against a local repository. This endpoint handles a fixed set of named actions — it does not accept arbitrary git commands.
+
+**Request body:**
+
+<ParamField body="repoPath" type="string" required>
+  Absolute path to the git repository root. Must be within the sandbox.
+</ParamField>
+
+<ParamField body="action" type="string" required>
+  The git action to run. One of: `status`, `branch`, `commit`, `push`, `pull`, `branch-diff`, `sync-status`.
+</ParamField>
+
+<ParamField body="branchName" type="string">
+  Branch name. Required for the `branch` action.
+</ParamField>
+
+<ParamField body="message" type="string">
+  Commit message. Required for the `commit` action.
+</ParamField>
+
+<ParamField body="baseBranch" type="string">
+  Base branch for diff comparisons. Defaults to `"main"`. Used by the `branch-diff` action.
+</ParamField>
+
+**Supported actions:**
+
+| Action | Description |
+|--------|-------------|
+| `status` | Returns the current working tree status (`git status`). |
+| `branch` | Creates a new branch (`git checkout -b <branchName>`). |
+| `commit` | Stages all changes and commits with `message`. |
+| `push` | Pushes the current branch to origin. |
+| `pull` | Pulls the latest changes from origin. |
+| `branch-diff` | Returns a summary of commits between the current branch and `baseBranch`. |
+| `sync-status` | Reports whether the branch is ahead, behind, or diverged from its upstream. |
+
+**Example — commit staged changes:**
+
+<CodeGroup>
+
+```bash curl
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/git/action \
+  -d '{
+    "repoPath": "/Users/you/Source/my-app",
+    "action": "commit",
+    "message": "fix: correct off-by-one in pagination"
+  }'
+```
+
+```json response
+{
+  "success": true,
+  "output": "[fix/pagination 3a1b2c4] fix: correct off-by-one in pagination"
+}
+```
+
+</CodeGroup>
+
+---
+
+## GET /api/gateway/git/diff
+
+Return the diff between two refs in a repository.
+
+**Query parameters:**
+
+<ParamField query="path" type="string" required>
+  Absolute path to the git repository root.
+</ParamField>
+
+<ParamField query="from" type="string">
+  The base ref (commit SHA, branch name, or tag). Defaults to `HEAD~1` if omitted.
+</ParamField>
+
+<ParamField query="to" type="string">
+  The target ref. Defaults to `HEAD` if omitted.
+</ParamField>
+
+**Example:**
+
+<CodeGroup>
+
+```bash curl
+curl -s \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  "http://localhost:19432/api/gateway/git/diff?path=/Users/you/Source/my-app&from=main&to=HEAD"
+```
+
+```json response
+{
+  "diff": "diff --git a/src/server/router.ts b/src/server/router.ts\nindex a1b2c3d..e4f5g6h 100644\n--- a/src/server/router.ts\n+++ b/src/server/router.ts\n..."
+}
+```
+
+</CodeGroup>
+
+---
+
+## GET /api/gateway/git/repo-path
+
+Find the git repository root for a given directory. Useful when you have the path to a file or subdirectory and need the repository root to pass to other git endpoints.
+
+**Query parameters:**
+
+<ParamField query="path" type="string" required>
+  Path to a directory or file within a git repository.
+</ParamField>
+
+**Example:**
+
+```bash
+curl -s \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  "http://localhost:19432/api/gateway/git/repo-path?path=/Users/you/Source/my-app/src/server"
+```
+
+---
+
+## GET /api/gateway/git/pr
+
+List open pull requests for the repository. Uses the `gh` CLI under the hood.
+
+**POST /api/gateway/git/pr**
+
+Create a pull request. Accepts a JSON body with PR metadata such as title, body, base branch, and head branch.
+
+<Note>
+PR operations require the GitHub CLI (`gh`) to be installed and authenticated (`gh auth login`). Check `capabilities.tools.gh` in the `/health` response before calling these endpoints. If `gh` is unavailable, PR endpoints return an error indicating the binary is missing.
+</Note>
+
+---
+
+## GET /api/gateway/git/worktree
+
+List git worktrees associated with the Symphony directory.
+
+**POST /api/gateway/git/worktree**
+
+Create a new git worktree. Accepts a JSON body with the branch name and target path.
+
+---
+
+## GET /api/gateway/git/branch-worktree
+
+Return branch-to-worktree mapping information for Symphony sessions.

@@ -1,0 +1,57 @@
+---
+title: "ClosedLoop Desktop: AI coding sessions on your machine"
+description: "ClosedLoop Desktop bridges the ClosedLoop web platform to your local machine, enabling AI coding sessions, git operations, and sandboxed file access."
+---
+
+ClosedLoop Desktop is a macOS application that runs a secure localhost HTTP gateway, bridging the ClosedLoop web app at [app.closedloop.ai](https://app.closedloop.ai) to your local development tools. It lets ClosedLoop orchestrate AI coding sessions, git operations, and file access directly on your machine — without uploading your code to a remote server.
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Download and install ClosedLoop Desktop on macOS. Get up and running in minutes.
+  </Card>
+  <Card title="Quick Start" icon="bolt" href="/quickstart">
+    Connect your first repository and launch an AI coding session in 5 steps.
+  </Card>
+  <Card title="Symphony Sessions" icon="robot" href="/features/symphony-sessions">
+    Run AI-powered coding sessions on your local codebase with full git integration.
+  </Card>
+  <Card title="Gateway API" icon="code" href="/api/overview">
+    Explore the local HTTP gateway API for direct integration with your tools.
+  </Card>
+</CardGroup>
+
+## How ClosedLoop Desktop works
+
+ClosedLoop Desktop acts as a secure bridge between the ClosedLoop cloud platform and your local machine. When you launch a coding task in the web app, the cloud relay sends commands to your desktop app, which executes them locally using tools like Claude Code, `git`, and `gh`.
+
+<Steps>
+  <Step title="Install the desktop app">
+    Download the macOS DMG from [GitHub Releases](https://github.com/closedloop-ai/closedloop-electron/releases) and install it. The app appears in your menu bar.
+  </Step>
+  <Step title="Connect your ClosedLoop account">
+    Open the desktop app settings and enter your ClosedLoop API key. This authenticates your machine with the cloud relay.
+  </Step>
+  <Step title="Set your sandbox directory">
+    Choose a root directory that ClosedLoop is allowed to access. The app enforces strict path-based access control — nothing outside this directory can be read or modified.
+  </Step>
+  <Step title="Start coding with AI">
+    Open [app.closedloop.ai](https://app.closedloop.ai) and launch a Symphony session. The AI runs on your machine, inside your repository, with your local tools.
+  </Step>
+</Steps>
+
+## Key capabilities
+
+<CardGroup cols={2}>
+  <Card title="Sandbox Security" icon="shield" href="/security/sandbox-policy">
+    Strict path enforcement keeps AI operations within your chosen directory.
+  </Card>
+  <Card title="Approval Controls" icon="circle-check" href="/configuration/approval-policy">
+    Review and approve operations before they run, with configurable risk tiers.
+  </Card>
+  <Card title="Git Operations" icon="code-branch" href="/features/git-operations">
+    Full git support: commits, branches, diffs, PRs, and worktrees.
+  </Card>
+  <Card title="Auto-Updates" icon="rotate" href="/troubleshooting/common-issues">
+    Packaged builds check for updates every 5 minutes and install on quit.
+  </Card>
+</CardGroup>

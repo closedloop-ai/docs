@@ -1,0 +1,158 @@
+---
+title: "Symphony Sessions: AI Coding with Claude Code"
+description: "Symphony sessions run Claude Code on your machine to read, write, and commit code. Each session gets its own git branch and worktree inside your sandbox."
+---
+
+Symphony sessions are the core AI coding feature in ClosedLoop Desktop. When you start a session, the app launches Claude Code locally on your machine and points it at a dedicated git branch inside your sandbox directory. Claude can read and write files, run shell commands, commit changes, push branches, and open pull requests — all without leaving your machine.
+
+## How a session works
+
+Each Symphony session is tied to a git worktree checked out from your repository. The worktree lives inside your configured sandbox directory, so every file operation is isolated from other branches and from your main working tree. When the session finishes, you can review the diff, merge the branch, or discard it entirely.
+
+Sessions move through a defined lifecycle:
+
+| Status | What it means |
+|---|---|
+| `pending` | Session is queued, waiting to start |
+| `running` | Claude Code is actively executing |
+| `completed` | Session finished successfully |
+| `failed` | Session encountered an unrecoverable error |
+| `cancelled` | Session was stopped before finishing |
+
+## Launching a session
+
+You can start a Symphony session from the ClosedLoop web app at [app.closedloop.ai](https://app.closedloop.ai), or call the gateway API directly.
+
+<Note>
+Launching a session carries a **medium** risk tier. Depending on your approval settings, the desktop app may prompt you to confirm before the session starts. See [approval settings](/configuration/approval-policy) for details.
+</Note>
+
+**API endpoint**
+
+```http
+POST /api/gateway/symphony/loop
+```
+
+**Minimal request body**
+
+```json
+{
+  "repoPath": "~/sandbox/my-repo",
+  "branchName": "cl/fix-login-bug",
+  "prompt": "Fix the null pointer exception in the login flow"
+}
+```
+
+**Example with curl**
+
+```bash
+curl -s -X POST \
+  -H "X-Desktop-Session-Token: <token>" \
+  -H "Origin: https://app.closedloop.ai" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repoPath": "~/sandbox/my-repo",
+    "branchName": "cl/fix-login-bug",
+    "prompt": "Fix the null pointer exception in the login flow"
+  }' \
+  http://localhost:19432/api/gateway/symphony/loop
+```
+
+The response includes a session `id` you can use to track progress.
+
+## Checking session status
+
+```http
+GET /api/gateway/symphony/status/:id
+```
+
+```bash
+curl -s \
+  -H "X-Desktop-Session-Token: <token>" \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/symphony/status/sess_abc123
+```
+
+The response includes the current `status`, elapsed time, and a summary of any work completed so far.
+
+## Viewing logs
+
+```http
+GET /api/gateway/symphony/logs/:id
+```
+
+This endpoint streams the tail of the session's output log in real time. Use it to follow along as Claude works, or to diagnose a failed session.
+
+```bash
+curl -s \
+  -H "X-Desktop-Session-Token: <token>" \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/symphony/logs/sess_abc123
+```
+
+<Tip>
+Log streaming is a **low** risk operation and is auto-approved by default, even if you require approval for other operations.
+</Tip>
+
+## Stopping a session
+
+```http
+POST /api/gateway/symphony/kill
+```
+
+```json
+{
+  "sessionId": "sess_abc123"
+}
+```
+
+Killing a session stops the Claude Code process immediately. Any committed changes up to that point are preserved on the branch.
+
+## Listing all sessions
+
+```http
+GET /api/gateway/symphony/sessions
+```
+
+Returns a list of all sessions the desktop app knows about, with their statuses and associated branch names. Useful for building dashboards or checking what's currently running.
+
+## Plans
+
+Before executing, Symphony can generate a plan — a structured outline of the steps Claude intends to take. You can review the plan and decide whether to proceed.
+
+<Steps>
+  <Step title="Request a plan">
+    Call `POST /api/gateway/symphony/loop` with `"planFirst": true` in the request body. The session starts in a planning phase rather than executing immediately.
+  </Step>
+  <Step title="Review the plan">
+    Retrieve the plan with `GET /api/gateway/symphony/plan/:id`. The response contains a markdown document describing each proposed step.
+  </Step>
+  <Step title="Approve or cancel">
+    To execute the plan, call `POST /api/gateway/symphony/plan-loop/:id`. To discard it, kill the session with `POST /api/gateway/symphony/kill`.
+  </Step>
+</Steps>
+
+## Interacting with a running session
+
+You can send follow-up messages to a session that is still running using the symphony chat endpoint:
+
+```http
+POST /api/gateway/symphony/chat/:id
+```
+
+This lets you give Claude additional context, redirect it, or ask questions without stopping the session. For the full chat interface reference, see [AI Chat](/features/ai-chat).
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="Claude CLI" icon="terminal">
+    The `claude` binary must be installed and accessible on your `PATH`, or configured under **Settings → Binary Paths**. Symphony sessions will not start without it.
+  </Card>
+  <Card title="Sandbox directory" icon="folder">
+    A sandbox base directory must be configured in settings. All session worktrees are created inside this directory.
+  </Card>
+</CardGroup>
+
+<Warning>
+If the `claude` binary is not found, session launches will return an error. Install [Claude Code](https://claude.ai/code) and verify the path in **Settings → Binary Paths**.
+</Warning>

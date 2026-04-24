@@ -1,0 +1,150 @@
+---
+title: "Filesystem endpoints: browse and search files"
+description: "List directory contents and search files within your sandbox using the ClosedLoop Desktop gateway. Paths outside the sandbox return 403 Forbidden."
+---
+
+The filesystem endpoints let you browse directories and search for files within the sandbox. All paths are validated against the sandbox base directory configured in Desktop Settings — requests for paths outside the sandbox, or for hardcoded sensitive directories such as `~/.ssh`, `~/.aws`, and `/etc`, return `403`.
+
+Both endpoints require a valid session token. See [Authentication](/api/authentication) for how to obtain one.
+
+## GET /api/gateway/directories
+
+List the subdirectories immediately inside a given path. Hidden directories (names starting with `.`) are excluded. Only directories are returned — files are not included. Git repository directories are sorted to the top of the results.
+
+### Request
+
+**Required headers:**
+
+| Header | Value |
+|--------|-------|
+| `X-Desktop-Session-Token` | Your session token |
+| `Origin` | `https://app.closedloop.ai` or your loopback origin |
+
+**Query parameters:**
+
+<ParamField query="path" type="string">
+  The directory path to list. Supports `~` expansion. Defaults to `~` if omitted. Must be within the configured sandbox base directory.
+</ParamField>
+
+### Response
+
+<ResponseField name="directories" type="array">
+  An array of directory entry objects. Empty array if the path does not exist.
+
+  <Expandable title="directory entry fields">
+    <ResponseField name="name" type="string">
+      The directory name (not the full path).
+    </ResponseField>
+
+    <ResponseField name="path" type="string">
+      The full path to the directory. If the request used a `~`-prefixed path, the response preserves the `~` prefix.
+    </ResponseField>
+
+    <ResponseField name="isDirectory" type="boolean">
+      Always `true`.
+    </ResponseField>
+
+    <ResponseField name="isGitRepo" type="boolean">
+      `true` if the directory contains a `.git` subdirectory. Git repositories sort before non-repositories in the result list.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash curl
+curl -s \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  "http://localhost:19432/api/gateway/directories?path=/Users/you/Source"
+```
+
+```json response
+{
+  "directories": [
+    {
+      "name": "my-app",
+      "path": "/Users/you/Source/my-app",
+      "isDirectory": true,
+      "isGitRepo": true
+    },
+    {
+      "name": "my-app-worktrees",
+      "path": "/Users/you/Source/my-app-worktrees",
+      "isDirectory": true,
+      "isGitRepo": false
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Error responses
+
+| Status | Body | Cause |
+|--------|------|-------|
+| `403` | `{"error": "directory not allowed"}` | The path is outside the sandbox or on the sensitive-path deny list. |
+| `500` | `{"error": "Failed to list directories: <message>"}` | Unexpected filesystem error. |
+
+---
+
+## GET /api/gateway/files/search
+
+Search for files matching a query string within a directory tree. Results are file paths relative to the search root. This endpoint is useful for locating specific source files before referencing them in a Symphony prompt or chat message.
+
+### Request
+
+**Required headers:**
+
+| Header | Value |
+|--------|-------|
+| `X-Desktop-Session-Token` | Your session token |
+| `Origin` | `https://app.closedloop.ai` or your loopback origin |
+
+**Query parameters:**
+
+<ParamField query="path" type="string" required>
+  The root directory to search within. Must be within the configured sandbox base directory.
+</ParamField>
+
+<ParamField query="q" type="string">
+  The search string to match against file names and paths. Also accepted as `query`.
+</ParamField>
+
+### Example
+
+<CodeGroup>
+
+```bash curl
+curl -s \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  "http://localhost:19432/api/gateway/files/search?path=/Users/you/Source/my-app&q=router"
+```
+
+```json response
+{
+  "files": [
+    "/Users/you/Source/my-app/src/server/router.ts",
+    "/Users/you/Source/my-app/src/client/router.tsx"
+  ]
+}
+```
+
+</CodeGroup>
+
+## Sandbox enforcement
+
+The gateway enforces a single sandbox base directory. You configure this directory in Desktop Settings during onboarding. Every filesystem and git operation checks the target path against this directory before proceeding.
+
+<Warning>
+The following paths are always denied, even if they are inside the sandbox base directory: `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/Library/Keychains`, `/etc`, `/bin`, `/sbin`. Requests targeting these paths return `403`.
+</Warning>
+
+If you receive an unexpected `403`, check that:
+- The sandbox base directory is set in Desktop Settings.
+- The `path` parameter is an absolute path, not a relative one.
+- The path is not a hardcoded sensitive directory.

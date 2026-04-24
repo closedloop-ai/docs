@@ -1,0 +1,112 @@
+---
+title: "AI Chat: Contextual Chat Interfaces in ClosedLoop"
+description: "Use ClosedLoop Desktop's AI chat interfaces — terminal, ticket, run viewer, and Symphony — each tuned to a specific context. Supports both Claude and Codex."
+---
+
+ClosedLoop Desktop exposes a set of AI chat endpoints that let you start a conversation with Claude or Codex in the context of whatever you are working on. Each chat type is designed for a specific situation: reviewing a run, discussing a ticket, chatting inside a terminal session, or steering a running Symphony session. All chat processes run locally on your machine — no conversation data is routed through ClosedLoop servers.
+
+## Chat types
+
+<CardGroup cols={2}>
+  <Card title="Terminal Chat" icon="terminal">
+    A general-purpose chat session tied to a terminal context. Use it to ask questions about your codebase, get command suggestions, or explore a repository.
+
+    ```
+    POST /api/gateway/terminal-chat
+    ```
+  </Card>
+  <Card title="Ticket Chat" icon="ticket">
+    Chat tied to a specific issue or ticket. The AI receives context about the ticket so it can answer questions about scope, requirements, and implementation approach.
+
+    ```
+    POST /api/gateway/ticket-chat
+    ```
+  </Card>
+  <Card title="Run Viewer Chat" icon="play">
+    Chat while reviewing the output of a completed or in-progress run. Lets you ask the AI to explain what happened, identify failures, or suggest next steps.
+
+    ```
+    POST /api/gateway/run-viewer-chat
+    ```
+  </Card>
+  <Card title="Symphony Chat" icon="wand-magic-sparkles">
+    Send messages to a running Symphony session. Use this to give Claude additional instructions, ask about progress, or redirect the session mid-execution.
+
+    ```
+    POST /api/gateway/symphony/chat/:sessionId
+    ```
+  </Card>
+</CardGroup>
+
+## Generic chat sessions
+
+In addition to the context-specific interfaces above, you can start a standalone chat session with explicit provider selection:
+
+```http
+POST /api/gateway/chat/session
+```
+
+**Request body**
+
+```json
+{
+  "provider": "claude",
+  "messages": [
+    { "role": "user", "content": "Explain the retry logic in src/client.ts" }
+  ]
+}
+```
+
+Set `"provider"` to `"claude"` or `"codex"` depending on which model you want to use.
+
+## Streaming responses
+
+All chat endpoints return responses as a stream. The desktop app uses chunked HTTP transfer to deliver tokens as they are generated, so you see output progressively rather than waiting for the full response. Clients should handle streaming responses by reading the body incrementally.
+
+<Tip>
+If you are building a custom integration against the gateway, use a streaming-capable HTTP client and process response chunks as they arrive to provide a responsive user experience.
+</Tip>
+
+## Provider selection
+
+ClosedLoop Desktop supports two AI providers:
+
+| Provider | Binary | Notes |
+|---|---|---|
+| Claude | `claude` | Default for Symphony sessions and most chat types |
+| Codex | `codex` | Available for chat sessions and code review via `"provider": "codex"` |
+
+The gateway resolves the binary in the following order:
+
+1. The path configured under **Settings → Binary Paths** for that provider
+2. `which <binary>` using the current `PATH`
+3. A login-shell lookup (`bash -lc 'which <binary>'`) to find binaries installed by nvm, Homebrew, or similar tools
+
+<Note>
+If neither `claude` nor `codex` is found, the corresponding chat endpoints will return an error. Install the required binary and verify its path in **Settings → Binary Paths**.
+</Note>
+
+## Chat history
+
+For Symphony sessions, you can retrieve the full conversation history after the session ends:
+
+```http
+GET /api/gateway/symphony/chat-history/:sessionId
+```
+
+This returns the ordered list of messages exchanged between the user and Claude during the session.
+
+## Risk tiers
+
+All chat operations carry a **medium** risk tier. Depending on your approval settings, the desktop app may ask you to confirm before starting a chat session initiated by a cloud command. See [Approvals and risk tiers](/configuration/approval-policy) for configuration options.
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="Claude CLI" icon="robot">
+    Required for `terminal-chat`, `ticket-chat`, `run-viewer-chat`, `symphony-chat`, and any generic chat session with `"provider": "claude"`. Install [Claude Code](https://claude.ai/code) and ensure `claude` is on your `PATH`.
+  </Card>
+  <Card title="Codex CLI" icon="code">
+    Required only when `"provider": "codex"` is specified. Install the Codex CLI and set its path under **Settings → Binary Paths** if it is not on your system `PATH`.
+  </Card>
+</CardGroup>

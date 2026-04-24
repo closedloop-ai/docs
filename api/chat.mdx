@@ -1,0 +1,203 @@
+---
+title: "Chat endpoints: terminal, ticket, and session chat"
+description: "Interact with Claude or Codex via the ClosedLoop Desktop gateway in different contexts: terminal, ticket, run viewer, and generic multi-turn chat sessions."
+---
+
+The chat endpoints let you interact with AI providers (Claude or Codex) in different contextual modes. Each mode is optimized for a specific workflow: working in a terminal, discussing a ticket or issue, reviewing an agent run, or having an open-ended conversation. All chat endpoints require a valid session token and stream responses.
+
+<Note>
+Chat endpoints require the corresponding AI provider binary to be installed and accessible on the machine. Check `capabilities.tools.claude` and `capabilities.tools.codex` in the `/health` response before calling chat endpoints. Requests to endpoints whose provider is unavailable will return an error.
+</Note>
+
+## Authentication
+
+All chat endpoints require:
+
+| Header | Value |
+|--------|-------|
+| `X-Desktop-Session-Token` | Your session token |
+| `Origin` | `https://app.closedloop.ai` or your loopback origin |
+
+---
+
+## POST /api/gateway/terminal-chat
+
+Chat with an AI provider in the context of a terminal session. The chat history is persisted across calls so you can have a multi-turn conversation. Send messages as a user, and the assistant's reply is appended to the history.
+
+**Request body:**
+
+<ParamField body="message" type="string" required>
+  The user message to send. To select the provider, prefix the message with `@claude` or `@codex`. Without a prefix, the gateway uses the default provider.
+</ParamField>
+
+**Response:**
+
+The response is a streaming JSON event stream. Each event describes a chunk of the assistant reply or a tool call. The final event contains the complete assistant message.
+
+**Auxiliary methods:**
+
+- `GET /api/gateway/terminal-chat` — retrieve the current chat history.
+- `DELETE /api/gateway/terminal-chat` — clear the chat history and start a new conversation.
+
+**Example:**
+
+<CodeGroup>
+
+```bash curl
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/terminal-chat \
+  -d '{"message": "What does the fetchUser function in src/api/users.ts do?"}'
+```
+
+```json response (streaming events)
+{"type":"text","text":"The `fetchUser` function in `src/api/users.ts` is responsible for..."}
+{"type":"text","text":" retrieving a user record by ID from the REST API."}
+{"type":"done","messageId":"msg_abc123","role":"assistant"}
+```
+
+</CodeGroup>
+
+---
+
+## POST /api/gateway/ticket-chat
+
+Chat with an AI provider in the context of a ticket or issue. Use this mode when you want the assistant to reason about a bug report, feature request, or task description alongside relevant code.
+
+**Request body:**
+
+<ParamField body="message" type="string" required>
+  The user message to send.
+</ParamField>
+
+<ParamField body="repoPath" type="string">
+  Absolute path to the repository the ticket relates to. Providing this lets the assistant reference code in the sandbox.
+</ParamField>
+
+<ParamField body="ticketContext" type="string">
+  Optional. The ticket or issue description to include as context.
+</ParamField>
+
+**Example:**
+
+```bash
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/ticket-chat \
+  -d '{
+    "message": "How should I approach fixing this?",
+    "repoPath": "/Users/you/Source/my-app",
+    "ticketContext": "BUG-42: fetchUser throws a TypeError when the API returns a 404"
+  }'
+```
+
+---
+
+## POST /api/gateway/run-viewer-chat
+
+Chat with an AI provider while reviewing a completed Symphony session run. The assistant has access to the session logs and plan, allowing it to explain what the agent did, why specific decisions were made, or what to do next.
+
+**Request body:**
+
+<ParamField body="message" type="string" required>
+  The user message to send.
+</ParamField>
+
+<ParamField body="sessionId" type="string">
+  The Symphony session ID whose run you are reviewing.
+</ParamField>
+
+**Example:**
+
+```bash
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/run-viewer-chat \
+  -d '{
+    "message": "Why did the agent create a new helper function instead of modifying the existing one?",
+    "sessionId": "sess_a1b2c3d4e5f6"
+  }'
+```
+
+---
+
+## POST /api/gateway/chat/session
+
+A generic chat session endpoint that accepts an explicit provider selection. Use this when you want direct control over which AI provider handles the request.
+
+**Request body:**
+
+<ParamField body="message" type="string" required>
+  The user message to send.
+</ParamField>
+
+<ParamField body="provider" type="string" required>
+  The AI provider to use: `"claude"` or `"codex"`.
+</ParamField>
+
+<ParamField body="sessionId" type="string">
+  Optional. An existing session ID to continue a prior conversation. If omitted, a new session is created.
+</ParamField>
+
+<ParamField body="repoPath" type="string">
+  Optional. Absolute path to a sandbox directory to include as working context for the provider.
+</ParamField>
+
+**Response:**
+
+<ResponseField name="sessionId" type="string">
+  The session ID. Pass this back in subsequent requests to continue the same conversation.
+</ResponseField>
+
+<ResponseField name="reply" type="string">
+  The assistant's response text.
+</ResponseField>
+
+**Example:**
+
+<CodeGroup>
+
+```bash curl
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Desktop-Session-Token: clsess_xyz789..." \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/chat/session \
+  -d '{
+    "provider": "claude",
+    "message": "Explain how the session token validation works in the gateway router.",
+    "repoPath": "/Users/you/Source/my-app"
+  }'
+```
+
+```json response
+{
+  "sessionId": "chatsess_9z8y7x...",
+  "reply": "The gateway validates session tokens in `isAuthorizedGatewayRequest()`. When a request arrives with an `X-Desktop-Session-Token` header..."
+}
+```
+
+</CodeGroup>
+
+---
+
+## Provider availability
+
+Before calling any chat endpoint, verify the required provider is available:
+
+```bash
+CAPABILITIES=$(curl -s http://localhost:19432/health | jq .capabilities.tools)
+CLAUDE=$(echo "$CAPABILITIES" | jq -r .claude)
+CODEX=$(echo "$CAPABILITIES" | jq -r .codex)
+
+echo "Claude available: $CLAUDE"
+echo "Codex available:  $CODEX"
+```
+
+If you request a provider that is not installed on the machine, the gateway returns an error with a remediation hint — for example, `"Install: npm install -g @anthropic-ai/claude-code"`.

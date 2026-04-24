@@ -1,0 +1,76 @@
+---
+title: "Cloud Connection: Linking Desktop to ClosedLoop"
+description: "ClosedLoop Desktop connects to relay.closedloop.ai so the web platform can send commands to your machine. Pause, resume, or disable the relay from Settings."
+---
+
+ClosedLoop Desktop maintains a persistent WebSocket connection to `relay.closedloop.ai`. This relay is the bridge between the ClosedLoop web platform and your local machine — when you trigger an action in the web app, the command travels through the relay to your desktop, which then executes it locally. Your code and your AI processes never leave your machine; only the command messages and their results pass through the relay.
+
+## How commands flow
+
+```
+ClosedLoop web app → relay.closedloop.ai → ClosedLoop Desktop → local execution
+```
+
+The relay acts as a message router. Your desktop app authenticates with your API key, registers its capabilities (which tools are available, which operations are supported), and then waits for incoming commands. When a command arrives, the desktop app executes it through the same local gateway used for direct API calls, and streams the result back through the relay to the web app.
+
+<Info>
+If the relay is unreachable — for example, because you are offline or the relay is temporarily unavailable — the local gateway continues to work normally. You can still call `http://localhost:19432/api/gateway/...` directly, and any locally initiated actions continue without interruption.
+</Info>
+
+## Connection states
+
+The tray icon reflects the current state of the cloud connection at all times:
+
+| State | What it means |
+|---|---|
+| `starting` | Desktop app is connecting to the relay for the first time |
+| `ready` | Connected and authenticated; commands can be received |
+| `degraded` | Connection was lost after a prior successful connection; attempting to reconnect |
+| `error` | Connection failed and could not be established |
+
+The app reconnects automatically whenever it detects a disconnect. If you see a persistent `degraded` or `error` state, check your network connection and verify your API key is configured correctly in settings.
+
+## Pausing incoming commands
+
+You can pause the relay without disconnecting from it. When paused, the desktop app remains connected to the relay but silently discards any incoming commands rather than executing them.
+
+To toggle this, go to **Settings** and enable **Pause cloud commands**.
+
+<Tip>
+Pausing is useful when you need uninterrupted focus time and do not want automated jobs starting on your machine, while still keeping the connection alive for quick re-activation.
+</Tip>
+
+## Disabling the cloud connection
+
+To disconnect from the relay entirely, go to **Settings** and turn off **Enable cloud connection**.
+
+When the cloud connection is disabled:
+
+- The desktop app does not connect to `relay.closedloop.ai` at startup
+- No commands can be sent from the ClosedLoop web platform to your machine
+- The local gateway remains fully functional for direct API calls
+
+<Warning>
+Disabling the cloud connection means the ClosedLoop web app cannot reach your desktop. Symphony sessions and other features that are triggered from the web app will not work until you re-enable the connection.
+</Warning>
+
+## Authentication
+
+Your desktop app authenticates with the relay using the API key configured in settings. The API key is stored encrypted on your machine and is sent to the relay during the initial handshake (`hello` event). Without a valid API key, the relay will reject the connection.
+
+<Note>
+The API key is used only to authenticate your machine with the relay. It is not transmitted with every command — the session is established once and then reused.
+</Note>
+
+## Settings reference
+
+| Setting | Default | Description |
+|---|---|---|
+| **Enable cloud connection** | On | Connect to the relay at startup |
+| **Pause cloud commands** | Off | Accept the connection but discard incoming commands |
+
+You can change both settings in the **Settings** panel of the desktop app. See [Configuration](/configuration/environment-variables) for environment variable overrides.
+
+## Relay endpoint
+
+The relay address defaults to `https://relay.closedloop.ai`. In most cases you should not need to change this. If your organization uses a self-hosted relay, you can override the address under **Settings → Relay Origin**.

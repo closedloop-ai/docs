@@ -1,0 +1,146 @@
+---
+title: "Git Operations: Local Git via the Gateway API"
+description: "Run sandboxed git operations through the ClosedLoop Desktop gateway using your local git install. Commit, push, diff, manage worktrees, and open pull requests."
+---
+
+ClosedLoop Desktop proxies git commands through its local gateway so the ClosedLoop platform can read and modify your repositories. Every operation runs using your machine's own `git` installation, which means it respects your existing git config, SSH keys, and credentials. Nothing is routed through ClosedLoop servers — git traffic goes directly from your machine to your remote.
+
+## Sandbox enforcement
+
+All git operations are restricted to repositories inside your configured sandbox directory. If a request targets a path outside the sandbox, the gateway returns `403 directory not allowed`. This applies to every git endpoint without exception.
+
+<Warning>
+Symlinks that resolve outside the sandbox are also denied. The sandbox check is path-based and cannot be bypassed by pointing git at a repository through a symlink that escapes the boundary.
+</Warning>
+
+## Supported actions
+
+The primary git endpoint accepts a `POST` request with an `action` field that selects the operation.
+
+```http
+POST /api/gateway/git
+```
+
+```json
+{
+  "repoPath": "~/sandbox/my-repo",
+  "action": "<action>"
+}
+```
+
+The supported `action` values are:
+
+| Action | Description |
+|---|---|
+| `status` | Shows working tree status (`git status`) |
+| `branch` | Creates or checks out a branch |
+| `commit` | Stages all changes and creates a commit |
+| `push` | Pushes the current branch to the remote |
+| `pull` | Pulls the latest changes from the remote |
+| `branch-diff` | Shows the diff between the current branch and a base branch |
+| `sync-status` | Reports how many commits ahead/behind the remote the branch is |
+
+### Commit example
+
+```bash
+curl -s -X POST \
+  -H "X-Desktop-Session-Token: <token>" \
+  -H "Origin: https://app.closedloop.ai" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repoPath": "~/sandbox/my-repo",
+    "action": "commit",
+    "message": "Fix null pointer exception in login flow"
+  }' \
+  http://localhost:19432/api/gateway/git
+```
+
+### Branch diff example
+
+```bash
+curl -s -X POST \
+  -H "X-Desktop-Session-Token: <token>" \
+  -H "Origin: https://app.closedloop.ai" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repoPath": "~/sandbox/my-repo",
+    "action": "branch-diff",
+    "baseBranch": "main"
+  }' \
+  http://localhost:19432/api/gateway/git
+```
+
+## Pull requests
+
+PR creation and management use the `gh` CLI, which must be installed and authenticated on your machine.
+
+```http
+GET  /api/gateway/git/pr/:repoPath
+POST /api/gateway/git/pr
+```
+
+The `POST` endpoint creates a pull request for the current branch. The `GET` endpoint returns the open PR for that branch if one exists.
+
+<Note>
+The `gh` binary must be installed, on your `PATH`, and authenticated with `gh auth login` before PR operations will work. You can also set a custom path under **Settings → Binary Paths**.
+</Note>
+
+## Branches
+
+List branches, check out an existing branch, or get metadata about the current branch:
+
+```http
+GET  /api/gateway/git/branches?repoPath=~/sandbox/my-repo
+```
+
+## Diffs
+
+Retrieve a full diff for display in the ClosedLoop UI:
+
+```http
+GET  /api/gateway/git/diff?repoPath=~/sandbox/my-repo&base=main
+```
+
+## Worktrees
+
+Symphony sessions use git worktrees to give each session an isolated working directory without cloning the repository again. Worktree management is handled automatically when you launch a session, but you can also query worktree state directly:
+
+```http
+GET  /api/gateway/git/branch-worktree?repoPath=~/sandbox/my-repo&branch=cl/my-branch
+POST /api/gateway/git/branch-worktree
+```
+
+<Tip>
+Worktree reads (`GET`) are classified as **low** risk and are auto-approved by default. Write operations that create or delete worktrees carry **medium** risk.
+</Tip>
+
+## Repository path
+
+If you need to resolve the absolute path to a repository root (for example, when working relative to a worktree), use:
+
+```http
+GET /api/gateway/git/repo-path?path=~/sandbox/my-repo/packages/api
+```
+
+The response includes the resolved root path of the git repository containing that directory.
+
+## Risk tiers
+
+| Operation | Risk tier |
+|---|---|
+| `git_action` (commit, push, pull, branch, diff) | medium |
+| `git_pr` (PR create/read) | medium |
+| `git_branch_worktree` (worktree read) | low |
+
+See [Approvals and risk tiers](/configuration/approval-policy) to configure which operations require your confirmation before running.
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="git" icon="code-branch">
+    `git` must be installed on your machine. The gateway uses your system git, so any existing git configuration (user name, email, signing keys) applies automatically.
+  </Card>
+  <Card title="gh CLI (for PRs)" icon="github">
+    The `gh` CLI is required only for pull request operations. Install it from [cli.github.com](https://cli.github.com) and run `gh auth login` to authenticate.
+  </Card>
+</CardGroup>

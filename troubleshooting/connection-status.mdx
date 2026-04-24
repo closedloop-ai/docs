@@ -1,0 +1,163 @@
+---
+title: "Understanding connection status in ClosedLoop Desktop"
+description: "Learn what each tray icon state means, how to diagnose relay and gateway connectivity problems, and how to pause or disable cloud commands from the tray."
+---
+
+The ClosedLoop Desktop app shows its connection state through the tray icon in your system menu bar. The tooltip that appears when you hover over the icon tells you exactly what's happening — whether the app is still starting up, fully connected, running with a degraded cloud relay, or in an error state. Understanding these states helps you quickly identify whether a problem is with the local gateway, the cloud relay, or both.
+
+## Tray icon states
+
+| State | Meaning |
+|-------|---------|
+| **Starting** | The app is launching. The gateway is not yet ready to accept requests. |
+| **Ready** | The local gateway is running and the cloud relay connection is active. Everything is working normally. |
+| **Degraded** | The local gateway is running, but the cloud relay is not connected. Local API calls work; commands from the web app won't reach your machine. |
+| **Error** | A startup error occurred. The gateway may not be running. |
+
+<AccordionGroup>
+
+<Accordion title="Starting — app is launching">
+
+When you first open ClosedLoop Desktop, the tray shows **Starting** while the gateway binds to a port and establishes the cloud relay connection. This normally takes a few seconds.
+
+If the app stays in **Starting** for more than 30 seconds:
+
+<Steps>
+  <Step title="Check for a port conflict">
+    Another process may be occupying all available ports (19432–19435). Check if another ClosedLoop Desktop instance is already running — look for a second tray icon or use Activity Monitor on macOS to find duplicate processes.
+  </Step>
+  <Step title="Quit and relaunch">
+    Right-click the tray icon, select **Quit**, then reopen the app.
+  </Step>
+</Steps>
+
+</Accordion>
+
+<Accordion title="Ready — fully connected">
+
+**Ready** means both the local gateway and the cloud relay are working:
+
+- The gateway is accepting requests on its active port (default 19432)
+- The relay connection to `relay.closedloop.ai` is established
+- Commands dispatched from the ClosedLoop web app will reach your machine
+
+You can confirm with a health check:
+
+```bash
+curl -s http://localhost:19432/health
+```
+
+A `"status": "ok"` response with your expected capabilities confirms everything is working.
+
+</Accordion>
+
+<Accordion title="Degraded — gateway works, relay has issues">
+
+**Degraded** means the local gateway is running and accessible, but the cloud relay connection is not active. The practical impact is:
+
+- **Local gateway API:** Still works. Any local integration calling `http://localhost:19432/...` continues to function normally.
+- **Web app commands:** Won't reach your machine. Commands dispatched from `app.closedloop.ai` require the relay connection.
+
+**Common causes and fixes:**
+
+<Steps>
+  <Step title="Check your internet connection">
+    The relay requires outbound HTTPS and WebSocket access to `relay.closedloop.ai`. Verify your network connection is active.
+  </Step>
+  <Step title="Check relay reachability">
+    In your terminal, test whether the relay host is reachable:
+
+    ```bash
+    curl -s -o /dev/null -w "%{http_code}" https://relay.closedloop.ai
+    ```
+
+    Any response (including a non-200 code) confirms DNS resolution and basic connectivity are working. A connection error points to a network or firewall issue.
+  </Step>
+  <Step title="Verify your API key">
+    The relay connection requires a valid API key. Open Desktop Settings and confirm your API key is set. If it was recently rotated, update it to the new value.
+  </Step>
+  <Step title="Pause and resume the cloud connection">
+    Right-click the tray icon and select **Pause**, wait a moment, then select **Resume**. This restarts the relay connection without restarting the entire app.
+  </Step>
+  <Step title="Restart the app">
+    If the above steps don't resolve the degraded state, quit and relaunch ClosedLoop Desktop from the tray menu.
+  </Step>
+</Steps>
+
+<Note>
+  During a degraded state, your local gateway is fully operational. If you're only using features that communicate directly with `localhost:19432`, you're unaffected.
+</Note>
+
+</Accordion>
+
+<Accordion title="Error — startup error occurred">
+
+**Error** means the app encountered a problem during startup and could not reach a working state.
+
+<Steps>
+  <Step title="Check for a duplicate instance">
+    If another copy of ClosedLoop Desktop is already running, a second instance may fail to bind to any available port. Look for a second tray icon or use Activity Monitor on macOS to identify duplicate `ClosedLoop` or `Electron` processes. Quit the duplicate, then right-click the error-state icon and select **Quit**, and relaunch.
+  </Step>
+  <Step title="Check all fallback ports">
+    Confirm whether the gateway managed to bind despite the error state. The app tries ports 19432 through 19435:
+
+    ```bash
+    curl -s http://localhost:19432/health
+    curl -s http://localhost:19433/health
+    curl -s http://localhost:19434/health
+    curl -s http://localhost:19435/health
+    ```
+
+    If any of these responds, the gateway did start — the error may be limited to the relay connection.
+  </Step>
+  <Step title="Restart the app">
+    Quit from the tray menu and relaunch. If the error persists across restarts, check the app's log output for details.
+  </Step>
+</Steps>
+
+</Accordion>
+
+</AccordionGroup>
+
+## Pausing and resuming cloud commands
+
+You can temporarily stop the app from accepting commands from the cloud relay without disconnecting entirely. This is useful when you need to focus without interruptions, or when testing local integrations.
+
+**To pause:** Right-click the tray icon and select **Pause**.
+
+**To resume:** Right-click the tray icon and select **Resume**.
+
+When paused, the relay connection stays active (the tray remains in **ready** state) but incoming cloud commands are held and not executed. The local gateway API continues to work normally while paused.
+
+This corresponds to the **Pause cloud commands** setting in your Desktop configuration.
+
+## Disabling the cloud connection entirely
+
+If you want to run the desktop app in a fully local mode with no cloud relay connection, you can disable it in Desktop Settings by turning off **Cloud Connection**.
+
+When the cloud connection is disabled:
+- The app starts without attempting to connect to the relay
+- The tray shows **ready** once the local gateway is bound (relay state is not part of the ready check in this mode)
+- Commands from the ClosedLoop web app will not reach your machine
+- The local gateway API at `localhost:19432` works normally
+
+<Warning>
+  Disabling the cloud connection means the ClosedLoop web app cannot dispatch commands to your machine. Re-enable it in Settings when you want to use web-initiated workflows.
+</Warning>
+
+## Using the health endpoint to diagnose connection issues
+
+The health endpoint is unauthenticated and always responds when the gateway is running, regardless of relay state or API key configuration. It's the fastest way to confirm what the app sees.
+
+```bash
+curl -s http://localhost:19432/health
+```
+
+Key fields to check:
+
+- **`status`** — should be `"ok"` if the gateway is running
+- **`port`** — the port the gateway bound to (may differ from 19432 if there was a conflict)
+- **`capabilities.tools`** — which binaries were found at startup (`true`/`false` per tool)
+- **`version`** — the app version currently running
+
+The health endpoint does not reflect relay state — a `"status": "ok"` response only confirms the local gateway is up. Check the tray icon to determine relay connectivity.

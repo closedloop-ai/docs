@@ -1,0 +1,100 @@
+---
+title: "ClosedLoop Desktop local gateway API reference"
+description: "Overview of the ClosedLoop Desktop HTTP gateway: base URL, port discovery, JSON request format, authentication, CORS policy, and standard error codes."
+---
+
+The ClosedLoop Desktop app exposes a local HTTP gateway that lets you call AI agents, run git operations, browse the filesystem, and launch Symphony sessions directly from your own scripts or tooling. All communication happens over localhost — no data leaves your machine through this API.
+
+## Base URL
+
+```
+http://localhost:19432
+```
+
+The gateway binds to port **19432** by default. If that port is already in use when the app starts, it falls back to **19433**, **19434**, and **19435** in order. Because the active port can vary, always confirm it before making gateway calls:
+
+```bash
+curl -s http://localhost:19432/health | jq .port
+```
+
+The `/health` endpoint returns the port the gateway is currently listening on. If port 19432 is unreachable, probe the fallbacks in order until you get a `200` response.
+
+<Note>
+Port discovery is only necessary if you start the Desktop app while other processes are already occupying port 19432. In most development setups the default port is stable.
+</Note>
+
+## Request and response format
+
+All gateway endpoints accept and return **JSON**. Set `Content-Type: application/json` on any request that includes a body.
+
+```bash
+curl -s \
+  -H "Content-Type: application/json" \
+  -H "X-Desktop-Session-Token: <token>" \
+  -H "Origin: https://app.closedloop.ai" \
+  http://localhost:19432/api/gateway/directories?path=/Users/you/Source
+```
+
+## Authentication
+
+The `/health` endpoint is public. Every other route under `/api/gateway/*` requires authentication. The primary mechanism for direct API access is the **session token**, sent in the `X-Desktop-Session-Token` header alongside a matching `Origin` header. See [Authentication](/api/authentication) for the full token-exchange flow.
+
+## CORS
+
+The gateway enforces an origin allowlist. Only `https://app.closedloop.ai` and loopback origins (`localhost`, `127.0.0.1`, `::1`, `*.localhost`) are permitted. Requests from other origins are rejected with `401`.
+
+## Error codes
+
+| Status | Meaning |
+|--------|---------|
+| `200 OK` | Request succeeded. |
+| `400 Bad Request` | Missing or malformed request parameters. Check the `error` field in the response body. |
+| `401 Unauthorized` | No valid credential provided, or the session token is expired. Re-authenticate and retry. |
+| `403 Forbidden` | The requested path is outside the configured sandbox directory, or the origin is blocked. |
+| `404 Not Found` | The URL does not match any registered route. |
+| `501 Not Implemented` | The route exists in the URL space but the running gateway build does not implement it. |
+| `503 Service Unavailable` | A required upstream dependency (such as the ClosedLoop API) is unavailable — usually because the desktop API key is not configured. |
+
+Error responses always include a JSON body:
+
+```json
+{
+  "error": "directory not allowed"
+}
+```
+
+## Quick start: health check
+
+Confirm the gateway is running and see which tools are available on the machine:
+
+<CodeGroup>
+
+```bash curl
+curl -s http://localhost:19432/health | jq .
+```
+
+```json response
+{
+  "status": "ok",
+  "machineName": "my-mac",
+  "version": "0.4.1",
+  "port": 19432,
+  "capabilities": {
+    "tools": {
+      "claude": true,
+      "codex": false,
+      "git": true,
+      "gh": true,
+      "python3": true
+    },
+    "versions": {
+      "claude": "1.2.3",
+      "git": "2.44.0",
+      "gh": "2.48.0",
+      "python3": "3.12.2"
+    }
+  }
+}
+```
+
+</CodeGroup>

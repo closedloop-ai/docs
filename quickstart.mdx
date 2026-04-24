@@ -1,0 +1,108 @@
+---
+title: "Quickstart: Run your first Symphony session"
+description: "Configure ClosedLoop Desktop and launch your first Symphony AI session in five steps: install, add your API key, set a sandbox directory, and open the web app."
+---
+
+This guide walks you through the complete setup from a fresh install to your first Symphony AI session. The whole process takes about five minutes. If you have not installed ClosedLoop Desktop yet, start with the [installation guide](/installation).
+
+<Steps>
+  <Step title="Install and launch ClosedLoop Desktop">
+    Download the DMG from [GitHub Releases](https://github.com/closedloop-ai/closedloop-electron/releases), install the app, and launch it. You should see the ClosedLoop icon appear in your menu bar.
+
+    Confirm the local gateway is running by opening a terminal and running:
+
+    ```bash
+    curl -s http://localhost:19432/health
+    ```
+
+    You should receive a response like this:
+
+    ```json
+    {
+      "status": "ok",
+      "machineName": "your-mac",
+      "capabilities": {
+        "tools": {
+          "claude": true,
+          "git": true,
+          "gh": true,
+          "python3": true,
+          "codex": false
+        },
+        "versions": {
+          "claude": "1.2.3",
+          "git": "2.44.0"
+        }
+      },
+      "version": "0.4.0",
+      "port": 19432
+    }
+    ```
+
+    The `capabilities` field shows which local tools the gateway detected on your machine. You do not need all of them — `claude` and `git` are the most important for Symphony sessions.
+
+    <Note>
+      If the request fails, the app may still be starting up. Wait a few seconds and try again. If the port `19432` is in use, ClosedLoop Desktop will try `19433`, `19434`, or `19435` — check the tray icon menu for the actual port in use.
+    </Note>
+  </Step>
+
+  <Step title="Enter your API key">
+    Click the ClosedLoop icon in your menu bar and open **Settings**. Paste your ClosedLoop API key into the **API Key** field and save.
+
+    Your API key authenticates your machine with the ClosedLoop cloud relay, allowing the web app to send commands to your local gateway. It is stored securely in macOS Keychain — not in a plain-text file.
+
+    <Warning>
+      Without a valid API key, the gateway starts but the web app cannot establish an authenticated session with it. You will see a `503` error if you try to use gateway features without a key configured.
+    </Warning>
+  </Step>
+
+  <Step title="Set your sandbox directory">
+    In **Settings**, set a **Sandbox Directory**. This is the root folder that ClosedLoop is allowed to access. Choose a directory that contains the repositories you want to work with — for example, `~/Developer` or `~/Source`.
+
+    The gateway enforces this boundary strictly:
+
+    - Any path outside the sandbox returns an HTTP `403` error
+    - Sensitive directories like `~/.ssh`, `~/.aws`, and `~/.gnupg` are always blocked, even if they fall inside your sandbox root
+
+    <Tip>
+      Set the sandbox to a parent directory that contains multiple repositories rather than a single repo. This lets you work across projects without reconfiguring the sandbox each time.
+    </Tip>
+  </Step>
+
+  <Step title="Open the ClosedLoop web app">
+    Navigate to [app.closedloop.ai](https://app.closedloop.ai) in your browser and sign in. The web app automatically detects the local gateway running on your machine and shows a connection indicator.
+
+    If the web app does not detect the gateway, check that:
+
+    - The ClosedLoop Desktop app is running (tray icon is visible)
+    - Your API key is configured in the desktop app settings
+    - You are signed into the web app with the same account that owns the API key
+  </Step>
+
+  <Step title="Launch a Symphony session">
+    From the ClosedLoop web app, open a project and start a **Symphony session**. Symphony uses Claude Code to work directly inside your local repository — reading files, making edits, running git commands, and iterating based on your instructions.
+
+    You can monitor the session's activity from both the web app and the ClosedLoop Desktop tray menu, which shows live status for running jobs.
+
+    <Note>
+      Symphony sessions require Claude Code to be installed and accessible on your `PATH`. The health endpoint response shows `"claude": true` in the `capabilities` field when it is detected. If it shows `false`, install Claude Code and relaunch ClosedLoop Desktop.
+    </Note>
+  </Step>
+</Steps>
+
+## Verifying everything is connected
+
+After completing setup, you can run a quick end-to-end check from your terminal:
+
+```bash
+# Check gateway health
+curl -s http://localhost:19432/health | python3 -m json.tool
+```
+
+A healthy response with `"status": "ok"` and `"claude": true` in capabilities means you are ready to go.
+
+## Next steps
+
+- [Configure your sandbox policy](/configuration/sandbox) to fine-tune path access controls
+- [Understand approval tiers](/configuration/approval-policy) to control which operations run automatically vs. require your sign-off
+- [Explore Symphony sessions](/features/symphony-sessions) to learn what AI coding sessions can do in your repository

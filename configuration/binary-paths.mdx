@@ -1,0 +1,118 @@
+---
+title: "Override binary paths for claude, git, gh, and more"
+description: "Tell ClosedLoop Desktop exactly where to find claude, gh, codex, git, and python3 when they are installed outside the standard system PATH."
+---
+
+ClosedLoop Desktop shells out to several command-line tools — `claude`, `gh`, `codex`, `git`, and `python3` — during normal operation. By default it resolves these tools through your system `PATH`. If any of these binaries are installed in a non-standard location (for example, via Homebrew on Apple Silicon, `nvm`, a virtual environment, or a custom prefix), you can tell ClosedLoop Desktop exactly where to find them using binary path overrides.
+
+## Why you might need this
+
+Common reasons to configure binary path overrides:
+
+- **Homebrew on Apple Silicon** installs binaries under `/opt/homebrew/bin`, which may not be in `PATH` when the app is launched from the dock rather than a terminal.
+- **Node version managers** (nvm, fnm, volta) place Node-based tools like `codex` in a version-specific directory that is only on `PATH` in your shell session.
+- **Python virtual environments** — you want ClosedLoop Desktop to use a specific `python3` interpreter rather than the system default.
+- **Multiple Git installations** — you have both a system Git and a Homebrew Git and want to use a specific one.
+
+## Configuring binary paths in the settings UI
+
+<Steps>
+  <Step title="Open Settings">
+    In ClosedLoop Desktop, open **Settings**.
+  </Step>
+  <Step title="Navigate to Binary Paths">
+    Find the **Binary Paths** section. You will see an input field for each supported tool: `claude`, `gh`, `codex`, `git`, and `python3`.
+  </Step>
+  <Step title="Enter the full path to each binary">
+    Type the absolute path to the executable. For example:
+
+    ```text
+    /opt/homebrew/bin/git
+    ```
+
+    Leave a field blank to use the system `PATH` for that tool.
+  </Step>
+  <Step title="Save">
+    Click **Save**. The overrides take effect for all subsequent operations — no restart required.
+  </Step>
+</Steps>
+
+<Tip>
+  To find the full path of a binary in your terminal, run `which git` (or the tool name). Copy the output directly into the corresponding field.
+</Tip>
+
+## Configuring binary paths via the API
+
+You can also read and update binary paths programmatically through the local gateway API.
+
+### Get current binary paths
+
+```http
+GET /api/gateway/settings/binary-paths
+```
+
+**Example response:**
+
+```json
+{
+  "claude": "/usr/local/bin/claude",
+  "gh": null,
+  "codex": "/home/user/.nvm/versions/node/v20.0.0/bin/codex",
+  "python3": null,
+  "git": "/opt/homebrew/bin/git"
+}
+```
+
+Fields with no override are returned as `null`, meaning the tool is resolved via `PATH`.
+
+### Update binary paths
+
+Send a `PATCH` request with only the fields you want to change. Fields you omit are left as-is.
+
+```http
+PATCH /api/gateway/settings/binary-paths
+Content-Type: application/json
+```
+
+**Request body:**
+
+```json
+{
+  "git": "/opt/homebrew/bin/git",
+  "python3": "/usr/local/opt/python@3.12/bin/python3"
+}
+```
+
+To clear an override and fall back to `PATH` resolution, set the field to `null`:
+
+```json
+{
+  "git": null
+}
+```
+
+**Example response** (the full updated state):
+
+```json
+{
+  "claude": null,
+  "gh": null,
+  "codex": null,
+  "python3": "/usr/local/opt/python@3.12/bin/python3",
+  "git": "/opt/homebrew/bin/git"
+}
+```
+
+## Supported tools
+
+| Field | Tool |
+|---|---|
+| `claude` | Claude Code CLI |
+| `gh` | GitHub CLI |
+| `codex` | OpenAI Codex CLI |
+| `git` | Git |
+| `python3` | Python 3 interpreter |
+
+<Note>
+  Binary path overrides are stored in your local ClosedLoop Desktop settings and apply only to operations run on this machine. They are not synced to the cloud.
+</Note>
